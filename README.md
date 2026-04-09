@@ -12,9 +12,15 @@ The direction is simple:
 
 ## What Server Owners Install
 
-Server owners only need one plugin jar:
+Server owners should choose the plugin line that matches their server:
 
 - `release/Coffers.jar`
+- `release/Coffers-Legacy.jar`
+
+Use:
+
+- `Coffers.jar` for the modern line
+- `Coffers-Legacy.jar` for older legacy-oriented server setups
 
 Vault compatibility is built into the main plugin and can be set to:
 
@@ -24,7 +30,7 @@ Vault compatibility is built into the main plugin and can be set to:
 
 ## Storage Backends
 
-Coffers now supports multiple persistence modes:
+The modern Coffers line supports multiple persistence modes:
 
 - `yaml`: simple local file storage for smaller servers that do not want a database
 - `sqlite`: file-based SQL storage for a single server that still wants structured persistence
@@ -32,10 +38,13 @@ Coffers now supports multiple persistence modes:
 
 Storage mode is configured in `coffers-paper/src/main/resources/config.yml`.
 
+The legacy line also ships with YAML, SQLite, and MySQL options through its own legacy configuration.
+
 ## Project Layout
 
 - `coffers-paper`: the main Paper plugin, including commands, storage wiring, Vault compatibility, and migration support
 - `coffers-api`: the shared developer API for currencies, ledger entries, transaction results, and richer integrations
+- `coffers-legacy`: the legacy-compatible plugin line for older server baselines
 - storage backends: YAML for simple setups, SQLite for single-server persistence, and MySQL for shared database deployments
 - built-in compatibility: Coffers can register as a Vault economy provider without needing a separate bridge plugin
 
@@ -51,6 +60,7 @@ Storage mode is configured in `coffers-paper/src/main/resources/config.yml`.
 Right now Coffers includes:
 
 - a Paper plugin bootstrap
+- a separate legacy plugin line for older server baselines
 - persistent YAML, SQLite, and MySQL storage options
 - configurable currencies with symbols, starting balances, fractional digits, and formatting rules
 - transaction history with audit metadata
@@ -66,6 +76,20 @@ Right now Coffers includes:
   - `/coffers migratevault [provider]`
 
 Current compatibility settings live in `coffers-paper/src/main/resources/config.yml`.
+
+## Modern And Legacy Lines
+
+Coffers now ships in two server-owner lines:
+
+- `Coffers.jar`
+  - intended for the modern line
+  - built for the current Paper-focused codebase
+
+- `Coffers-Legacy.jar`
+  - intended for older Spigot/Paper/Purpur-style server setups
+  - compiled against an older server/API baseline so legacy servers have their own supported line
+
+This approach is cleaner than pretending one jar can safely support every Minecraft server generation at once.
 
 ## Transaction History And Audit Metadata
 
@@ -125,6 +149,7 @@ This gives other plugins a better foundation than relying only on legacy Vault-s
 ## Downloads
 
 - Server owners: use `release/Coffers.jar`
+- Older legacy servers: use `release/Coffers-Legacy.jar`
 - Developers: optional `release/Coffers-API.jar`
 
 ## What Informed the Design
