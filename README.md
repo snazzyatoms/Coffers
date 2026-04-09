@@ -127,8 +127,6 @@ This gives other plugins a better foundation than relying only on legacy Vault-s
 - Server owners: use `release/Coffers.jar`
 - Developers: optional `release/Coffers-API.jar`
 
-In the source repository, `build/` and `release/` are generated output and should not be committed.
-
 ## What Informed the Design
 
 These ideas were borrowed conceptually, not by copying code:
