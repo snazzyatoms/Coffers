@@ -276,6 +276,7 @@ final class CoffersLegacyEconomyService {
             final String reason,
             final UUID referenceId
     ) {
+        LegacyTransactionActor normalizedActor = normalizeActor(actor);
         LegacyLedgerEntry entry = new LegacyLedgerEntry(
                 UUID.randomUUID(),
                 referenceId,
@@ -285,7 +286,7 @@ final class CoffersLegacyEconomyService {
                 kind,
                 amount,
                 resultingBalance,
-                actor,
+                normalizedActor,
                 reason,
                 System.currentTimeMillis()
         );
@@ -345,5 +346,9 @@ final class CoffersLegacyEconomyService {
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to persist Coffers Legacy history for " + accountId, exception);
         }
+    }
+
+    private LegacyTransactionActor normalizeActor(final LegacyTransactionActor actor) {
+        return actor != null ? actor : LegacyTransactionActor.system("coffers-legacy-runtime");
     }
 }

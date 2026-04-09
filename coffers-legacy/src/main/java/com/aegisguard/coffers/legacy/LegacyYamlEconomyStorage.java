@@ -116,6 +116,7 @@ final class LegacyYamlEconomyStorage implements LegacyEconomyStorage {
     }
 
     private void writeEntry(final String path, final LegacyLedgerEntry entry) {
+        LegacyTransactionActor actor = entry.getActor() == null ? LegacyTransactionActor.system("yaml-storage") : entry.getActor();
         this.historyConfig.set(path + ".reference-id", entry.getReferenceId().toString());
         this.historyConfig.set(path + ".account-id", entry.getAccountId().toString());
         this.historyConfig.set(path + ".counterparty-account-id", entry.getCounterpartyAccountId() == null ? null : entry.getCounterpartyAccountId().toString());
@@ -123,16 +124,24 @@ final class LegacyYamlEconomyStorage implements LegacyEconomyStorage {
         this.historyConfig.set(path + ".kind", entry.getKind().name());
         this.historyConfig.set(path + ".amount", entry.getAmount().toPlainString());
         this.historyConfig.set(path + ".resulting-balance", entry.getResultingBalance().toPlainString());
-        this.historyConfig.set(path + ".actor.type", entry.getActor().getType().name());
-        this.historyConfig.set(path + ".actor.id", entry.getActor().getActorId() == null ? null : entry.getActor().getActorId().toString());
-        this.historyConfig.set(path + ".actor.name", entry.getActor().getActorName());
-        this.historyConfig.set(path + ".actor.source", entry.getActor().getSource());
+        this.historyConfig.set(path + ".actor.type", actor.getType().name());
+        this.historyConfig.set(path + ".actor.id", actor.getActorId() == null ? null : actor.getActorId().toString());
+        this.historyConfig.set(path + ".actor.name", actor.getActorName());
+        this.historyConfig.set(path + ".actor.source", actor.getSource());
         this.historyConfig.set(path + ".reason", entry.getReason());
         this.historyConfig.set(path + ".created-at", Long.valueOf(entry.getCreatedAtEpochMilli()));
     }
 
     private LegacyLedgerEntry readEntry(final ConfigurationSection section) {
         ConfigurationSection actorSection = section.getConfigurationSection("actor");
+        LegacyTransactionActor actor = actorSection == null
+                ? LegacyTransactionActor.system("yaml-storage")
+                : new LegacyTransactionActor(
+                        LegacyTransactionActorType.valueOf(actorSection.getString("type", LegacyTransactionActorType.SYSTEM.name())),
+                        actorSection.getString("id") == null ? null : UUID.fromString(actorSection.getString("id")),
+                        actorSection.getString("name"),
+                        actorSection.getString("source")
+                );
         return new LegacyLedgerEntry(
                 UUID.fromString(section.getName()),
                 UUID.fromString(section.getString("reference-id")),
@@ -142,12 +151,7 @@ final class LegacyYamlEconomyStorage implements LegacyEconomyStorage {
                 LegacyTransactionKind.valueOf(section.getString("kind")),
                 new BigDecimal(section.getString("amount", "0")),
                 new BigDecimal(section.getString("resulting-balance", "0")),
-                new LegacyTransactionActor(
-                        LegacyTransactionActorType.valueOf(actorSection.getString("type", LegacyTransactionActorType.SYSTEM.name())),
-                        actorSection.getString("id") == null ? null : UUID.fromString(actorSection.getString("id")),
-                        actorSection.getString("name"),
-                        actorSection.getString("source")
-                ),
+                actor,
                 section.getString("reason"),
                 section.getLong("created-at")
         );

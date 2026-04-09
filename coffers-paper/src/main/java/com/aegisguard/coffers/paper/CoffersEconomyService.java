@@ -423,6 +423,7 @@ final class CoffersEconomyService implements CoffersEconomy {
             final String reason,
             final UUID referenceId
     ) {
+        final TransactionActor normalizedActor = normalizeActor(actor);
         final LedgerEntry entry = new LedgerEntry(
                 UUID.randomUUID(),
                 referenceId,
@@ -432,7 +433,7 @@ final class CoffersEconomyService implements CoffersEconomy {
                 kind,
                 amount,
                 resultingBalance,
-                actor,
+                normalizedActor,
                 reason,
                 System.currentTimeMillis()
         );
@@ -516,7 +517,11 @@ final class CoffersEconomyService implements CoffersEconomy {
                 kind,
                 currencyId,
                 result,
-                actor
+                normalizeActor(actor)
         ));
+    }
+
+    private TransactionActor normalizeActor(final TransactionActor actor) {
+        return actor != null ? actor : TransactionActor.system("coffers-runtime");
     }
 }

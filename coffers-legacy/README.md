@@ -1,6 +1,6 @@
 # Coffers Legacy
 
-Coffers Legacy is the compatibility line for older Minecraft server versions.
+Coffers Legacy is the standalone older-server line for Coffers.
 
 This folder is intentionally separate from the main modern Coffers implementation so we can port features carefully for older Spigot/Paper/Purpur server versions without breaking the main plugin line.
 
@@ -10,6 +10,7 @@ This folder is intentionally separate from the main modern Coffers implementatio
 - support legacy-friendly Java and server API baselines
 - keep the same Coffers identity where possible
 - provide a separate legacy jar for older server owners
+- keep Vault support available only as an optional compatibility bridge
 
 ## Current Status
 

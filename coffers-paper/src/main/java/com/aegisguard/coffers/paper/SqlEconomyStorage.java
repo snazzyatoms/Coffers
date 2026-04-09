@@ -90,6 +90,7 @@ final class SqlEconomyStorage implements EconomyStorage {
                     "SELECT * FROM coffers_history ORDER BY created_at ASC"
             ); ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
+                    final String actorType = resultSet.getString("actor_type");
                     final LedgerEntry entry = new LedgerEntry(
                             UUID.fromString(resultSet.getString("entry_id")),
                             UUID.fromString(resultSet.getString("reference_id")),
@@ -99,12 +100,14 @@ final class SqlEconomyStorage implements EconomyStorage {
                             TransactionKind.valueOf(resultSet.getString("transaction_kind")),
                             new BigDecimal(resultSet.getString("amount_value")),
                             new BigDecimal(resultSet.getString("resulting_balance")),
-                            new TransactionActor(
-                                    TransactionActorType.valueOf(resultSet.getString("actor_type")),
-                                    resultSet.getString("actor_id") == null ? null : UUID.fromString(resultSet.getString("actor_id")),
-                                    resultSet.getString("actor_name"),
-                                    resultSet.getString("actor_source")
-                            ),
+                            actorType == null
+                                    ? TransactionActor.system("sql-storage")
+                                    : new TransactionActor(
+                                            TransactionActorType.valueOf(actorType),
+                                            resultSet.getString("actor_id") == null ? null : UUID.fromString(resultSet.getString("actor_id")),
+                                            resultSet.getString("actor_name"),
+                                            resultSet.getString("actor_source")
+                                    ),
                             resultSet.getString("reason_value"),
                             resultSet.getLong("created_at")
                     );
@@ -154,6 +157,7 @@ final class SqlEconomyStorage implements EconomyStorage {
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """)) {
                 for (final LedgerEntry entry : entries) {
+                    final TransactionActor actor = entry.actor() == null ? TransactionActor.system("sql-storage") : entry.actor();
                     insert.setString(1, entry.entryId().toString());
                     insert.setString(2, entry.accountId().toString());
                     insert.setString(3, entry.referenceId().toString());
@@ -162,10 +166,10 @@ final class SqlEconomyStorage implements EconomyStorage {
                     insert.setString(6, entry.kind().name());
                     insert.setString(7, entry.amount().toPlainString());
                     insert.setString(8, entry.resultingBalance().toPlainString());
-                    insert.setString(9, entry.actor().type().name());
-                    insert.setString(10, entry.actor().actorId() == null ? null : entry.actor().actorId().toString());
-                    insert.setString(11, entry.actor().actorName());
-                    insert.setString(12, entry.actor().source());
+                    insert.setString(9, actor.type().name());
+                    insert.setString(10, actor.actorId() == null ? null : actor.actorId().toString());
+                    insert.setString(11, actor.actorName());
+                    insert.setString(12, actor.source());
                     insert.setString(13, entry.reason());
                     insert.setLong(14, entry.createdAtEpochMilli());
                     insert.addBatch();

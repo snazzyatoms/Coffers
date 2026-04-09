@@ -3,7 +3,7 @@ version: ${project.version}
 main: com.aegisguard.coffers.paper.CoffersPlugin
 api-version: '1.21'
 authors: [Aegis Guard]
-description: A modern economy plugin built for Coffers-aware integrations and legacy Vault bridges.
+description: A standalone economy platform for modern servers with an optional Vault compatibility bridge.
 softdepend: [Vault, PlaceholderAPI]
 commands:
   coffers:

@@ -3,7 +3,7 @@ version: ${project.version}
 main: com.aegisguard.coffers.legacy.CoffersLegacyPlugin
 api-version: '1.16'
 authors: [Aegis Guard]
-description: Legacy Coffers economy plugin for older Spigot and Paper compatible servers.
+description: Standalone Coffers economy line for older servers with an optional Vault compatibility bridge.
 softdepend: [Vault]
 commands:
   cofferslegacy:

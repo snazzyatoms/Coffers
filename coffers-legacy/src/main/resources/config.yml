@@ -1,3 +1,5 @@
+# Coffers Legacy runs as a standalone economy plugin on older server baselines.
+# Vault support is optional and intended for legacy plugin compatibility only.
 compatibility:
   vault-bridge: auto
 

@@ -126,6 +126,7 @@ final class YamlEconomyStorage implements EconomyStorage {
     }
 
     private void writeEntry(final String path, final LedgerEntry entry) {
+        final TransactionActor actor = entry.actor() == null ? TransactionActor.system("yaml-storage") : entry.actor();
         this.historyConfig.set(path + ".reference-id", entry.referenceId().toString());
         this.historyConfig.set(path + ".account-id", entry.accountId().toString());
         this.historyConfig.set(path + ".counterparty-account-id", entry.counterpartyAccountId() == null ? null : entry.counterpartyAccountId().toString());
@@ -133,16 +134,24 @@ final class YamlEconomyStorage implements EconomyStorage {
         this.historyConfig.set(path + ".kind", entry.kind().name());
         this.historyConfig.set(path + ".amount", entry.amount().toPlainString());
         this.historyConfig.set(path + ".resulting-balance", entry.resultingBalance().toPlainString());
-        this.historyConfig.set(path + ".actor.type", entry.actor().type().name());
-        this.historyConfig.set(path + ".actor.id", entry.actor().actorId() == null ? null : entry.actor().actorId().toString());
-        this.historyConfig.set(path + ".actor.name", entry.actor().actorName());
-        this.historyConfig.set(path + ".actor.source", entry.actor().source());
+        this.historyConfig.set(path + ".actor.type", actor.type().name());
+        this.historyConfig.set(path + ".actor.id", actor.actorId() == null ? null : actor.actorId().toString());
+        this.historyConfig.set(path + ".actor.name", actor.actorName());
+        this.historyConfig.set(path + ".actor.source", actor.source());
         this.historyConfig.set(path + ".reason", entry.reason());
         this.historyConfig.set(path + ".created-at", entry.createdAtEpochMilli());
     }
 
     private LedgerEntry readEntry(final ConfigurationSection section) {
         final ConfigurationSection actorSection = section.getConfigurationSection("actor");
+        final TransactionActor actor = actorSection == null
+                ? TransactionActor.system("yaml-storage")
+                : new TransactionActor(
+                        TransactionActorType.valueOf(actorSection.getString("type", TransactionActorType.SYSTEM.name())),
+                        actorSection.getString("id") == null ? null : UUID.fromString(actorSection.getString("id")),
+                        actorSection.getString("name"),
+                        actorSection.getString("source")
+                );
         return new LedgerEntry(
                 UUID.fromString(section.getName()),
                 UUID.fromString(section.getString("reference-id")),
@@ -152,12 +161,7 @@ final class YamlEconomyStorage implements EconomyStorage {
                 TransactionKind.valueOf(section.getString("kind")),
                 new BigDecimal(section.getString("amount", "0")),
                 new BigDecimal(section.getString("resulting-balance", "0")),
-                new TransactionActor(
-                        TransactionActorType.valueOf(actorSection.getString("type", TransactionActorType.SYSTEM.name())),
-                        actorSection.getString("id") == null ? null : UUID.fromString(actorSection.getString("id")),
-                        actorSection.getString("name"),
-                        actorSection.getString("source")
-                ),
+                actor,
                 section.getString("reason"),
                 section.getLong("created-at")
         );

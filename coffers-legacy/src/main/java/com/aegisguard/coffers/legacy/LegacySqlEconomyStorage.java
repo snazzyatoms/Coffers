@@ -66,6 +66,7 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
             historyStatement = connection.prepareStatement("SELECT * FROM coffers_legacy_history ORDER BY created_at ASC");
             historyResult = historyStatement.executeQuery();
             while (historyResult.next()) {
+                String actorType = historyResult.getString("actor_type");
                 LegacyLedgerEntry entry = new LegacyLedgerEntry(
                         UUID.fromString(historyResult.getString("entry_id")),
                         UUID.fromString(historyResult.getString("reference_id")),
@@ -75,12 +76,14 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                         LegacyTransactionKind.valueOf(historyResult.getString("transaction_kind")),
                         new BigDecimal(historyResult.getString("amount_value")),
                         new BigDecimal(historyResult.getString("resulting_balance")),
-                        new LegacyTransactionActor(
-                                LegacyTransactionActorType.valueOf(historyResult.getString("actor_type")),
-                                historyResult.getString("actor_id") == null ? null : UUID.fromString(historyResult.getString("actor_id")),
-                                historyResult.getString("actor_name"),
-                                historyResult.getString("actor_source")
-                        ),
+                        actorType == null
+                                ? LegacyTransactionActor.system("sql-storage")
+                                : new LegacyTransactionActor(
+                                        LegacyTransactionActorType.valueOf(actorType),
+                                        historyResult.getString("actor_id") == null ? null : UUID.fromString(historyResult.getString("actor_id")),
+                                        historyResult.getString("actor_name"),
+                                        historyResult.getString("actor_source")
+                                ),
                         historyResult.getString("reason_value"),
                         historyResult.getLong("created_at")
                 );
@@ -138,6 +141,7 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
 
             insert = connection.prepareStatement("INSERT INTO coffers_legacy_history (entry_id, account_uuid, reference_id, counterparty_uuid, currency_id, transaction_kind, amount_value, resulting_balance, actor_type, actor_id, actor_name, actor_source, reason_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             for (LegacyLedgerEntry entry : entries) {
+                LegacyTransactionActor actor = entry.getActor() == null ? LegacyTransactionActor.system("sql-storage") : entry.getActor();
                 insert.setString(1, entry.getEntryId().toString());
                 insert.setString(2, entry.getAccountId().toString());
                 insert.setString(3, entry.getReferenceId().toString());
@@ -146,10 +150,10 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                 insert.setString(6, entry.getKind().name());
                 insert.setString(7, entry.getAmount().toPlainString());
                 insert.setString(8, entry.getResultingBalance().toPlainString());
-                insert.setString(9, entry.getActor().getType().name());
-                insert.setString(10, entry.getActor().getActorId() == null ? null : entry.getActor().getActorId().toString());
-                insert.setString(11, entry.getActor().getActorName());
-                insert.setString(12, entry.getActor().getSource());
+                insert.setString(9, actor.getType().name());
+                insert.setString(10, actor.getActorId() == null ? null : actor.getActorId().toString());
+                insert.setString(11, actor.getActorName());
+                insert.setString(12, actor.getSource());
                 insert.setString(13, entry.getReason());
                 insert.setLong(14, entry.getCreatedAtEpochMilli());
                 insert.addBatch();

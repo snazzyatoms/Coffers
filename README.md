@@ -4,11 +4,30 @@
 
 Coffers is a fresh, from-scratch economy platform for modern Minecraft servers.
 
-The direction is simple:
+Starting with `v0.2`, the project direction is intentionally standalone-first:
 
-- Keep the good part of Vault: a stable abstraction other plugins can depend on.
-- Avoid the old Vault trap: baking every integration directly into one giant legacy plugin model.
-- Leave room for newer ideas like richer transactions, multi-currency, async storage, and cleaner bridges.
+- Coffers is the primary economy platform.
+- Coffers API is the preferred integration target for new plugins.
+- Vault compatibility exists only to help older plugin stacks transition cleanly.
+- Richer features should live in Coffers, not be constrained by the older Vault model.
+
+## Standalone-First Direction
+
+Coffers is not being built as "Vault with a new name."
+
+The goal for the project is:
+
+- give server owners a full standalone economy plugin without requiring Vault
+- give developers a direct API that is richer than Vault's older abstraction
+- keep a built-in Vault bridge only for legacy compatibility
+- make it easier for future plugins, including Aegis Guard, to target Coffers directly
+
+In practice, that means:
+
+- Vault is optional
+- Coffers storage, commands, currencies, and ledger history are native features
+- Coffers API should be preferred over Vault for new integrations
+- Vault compatibility should be treated as a migration layer, not the center of the architecture
 
 ## What Server Owners Install
 
@@ -28,6 +47,8 @@ Vault compatibility is built into the main plugin and can be set to:
 - `enabled`: force Coffers to expose a Vault economy provider when Vault is present
 - `disabled`: never register the Vault bridge
 
+If Vault is not installed, Coffers still runs normally as a standalone economy plugin.
+
 ## Storage Backends
 
 The modern Coffers line supports multiple persistence modes:
@@ -42,11 +63,11 @@ The legacy line also ships with YAML, SQLite, and MySQL options through its own 
 
 ## Project Layout
 
-- `coffers-paper`: the main Paper plugin, including commands, storage wiring, Vault compatibility, and migration support
-- `coffers-api`: the shared developer API for currencies, ledger entries, transaction results, and richer integrations
+- `coffers-paper`: the main Paper plugin, including commands, storage wiring, Coffers-native features, and optional Vault compatibility
+- `coffers-api`: the shared developer API for currencies, ledger entries, transaction results, events, and richer integrations
 - `coffers-legacy`: the legacy-compatible plugin line for older server baselines
 - storage backends: YAML for simple setups, SQLite for single-server persistence, and MySQL for shared database deployments
-- built-in compatibility: Coffers can register as a Vault economy provider without needing a separate bridge plugin
+- built-in legacy bridge: Coffers can register as a Vault economy provider without needing a separate bridge plugin
 
 ## Early Goals
 
@@ -64,9 +85,10 @@ Right now Coffers includes:
 - persistent YAML, SQLite, and MySQL storage options
 - configurable currencies with symbols, starting balances, fractional digits, and formatting rules
 - transaction history with audit metadata
-- built-in Vault compatibility
+- built-in Vault compatibility bridge for older plugin ecosystems
 - migration helpers for existing Vault-based economy setups
 - a richer API for plugin-to-plugin integrations
+- optional PlaceholderAPI support and newer admin tooling in the modern line
 - starter commands:
   - `/coffers balance [player]`
   - `/coffers pay <player> <amount>`
@@ -144,7 +166,16 @@ The API jar exposes richer integration types than the original baseline prototyp
 - transaction actor metadata
 - transaction kinds
 
+For new plugins, this API is the preferred target instead of Vault.
+
 This gives other plugins a better foundation than relying only on legacy Vault-style balance calls.
+
+## Documentation
+
+- Wiki home: `wiki/Home.md`
+- Standalone-first direction: `wiki/Standalone-First.md`
+- Vault bridge behavior: `wiki/Vault-Compatibility.md`
+- Developer integrations: `wiki/Developer-API.md`
 
 ## Downloads
 

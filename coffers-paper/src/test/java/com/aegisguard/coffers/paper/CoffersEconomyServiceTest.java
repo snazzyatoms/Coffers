@@ -87,6 +87,25 @@ class CoffersEconomyServiceTest {
         assertEquals(new BigDecimal("0.00"), service.getBalance(accountId, "coins"));
     }
 
+    @Test
+    void nullActorIsNormalizedForStandaloneApiCallers() {
+        final CoffersEconomyService service = new CoffersEconomyService(
+                List.of(currency("coins")),
+                "coins",
+                new NoOpStorage(),
+                10,
+                new StorageSnapshot(Map.of(), Map.of()),
+                Logger.getAnonymousLogger(),
+                null
+        );
+
+        final UUID accountId = UUID.randomUUID();
+        final var result = service.deposit(accountId, "coins", new BigDecimal("5.00"), null, "Plugin deposit");
+
+        assertTrue(result.successful());
+        assertEquals("System", service.recentTransactions(accountId, 10).getFirst().actor().actorName());
+    }
+
     private static CurrencyDefinition currency(final String id) {
         return new CurrencyDefinition(
                 id,

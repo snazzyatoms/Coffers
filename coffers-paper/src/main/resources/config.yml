@@ -1,3 +1,5 @@
+# Coffers runs as a standalone economy plugin.
+# Vault support is optional and intended for legacy plugin compatibility only.
 compatibility:
   vault-bridge: auto
 

@@ -80,10 +80,11 @@ final class SnapshotArchiveService {
                 configuration.set(entryPath + ".kind", ledgerEntry.kind().name());
                 configuration.set(entryPath + ".amount", ledgerEntry.amount().toPlainString());
                 configuration.set(entryPath + ".resulting-balance", ledgerEntry.resultingBalance().toPlainString());
-                configuration.set(entryPath + ".actor.type", ledgerEntry.actor().type().name());
-                configuration.set(entryPath + ".actor.id", ledgerEntry.actor().actorId() == null ? null : ledgerEntry.actor().actorId().toString());
-                configuration.set(entryPath + ".actor.name", ledgerEntry.actor().actorName());
-                configuration.set(entryPath + ".actor.source", ledgerEntry.actor().source());
+                final TransactionActor actor = ledgerEntry.actor() == null ? TransactionActor.system("snapshot-export") : ledgerEntry.actor();
+                configuration.set(entryPath + ".actor.type", actor.type().name());
+                configuration.set(entryPath + ".actor.id", actor.actorId() == null ? null : actor.actorId().toString());
+                configuration.set(entryPath + ".actor.name", actor.actorName());
+                configuration.set(entryPath + ".actor.source", actor.source());
                 configuration.set(entryPath + ".reason", ledgerEntry.reason());
                 configuration.set(entryPath + ".created-at", ledgerEntry.createdAtEpochMilli());
             }
@@ -130,6 +131,14 @@ final class SnapshotArchiveService {
                     }
 
                     final ConfigurationSection actorSection = entrySection.getConfigurationSection("actor");
+                    final TransactionActor actor = actorSection == null
+                            ? TransactionActor.system("snapshot-import")
+                            : new TransactionActor(
+                                    TransactionActorType.valueOf(actorSection.getString("type", TransactionActorType.SYSTEM.name())),
+                                    actorSection.getString("id") == null ? null : UUID.fromString(actorSection.getString("id")),
+                                    actorSection.getString("name"),
+                                    actorSection.getString("source")
+                            );
                     entries.add(new LedgerEntry(
                             UUID.fromString(entryKey),
                             UUID.fromString(entrySection.getString("reference-id")),
@@ -139,12 +148,7 @@ final class SnapshotArchiveService {
                             TransactionKind.valueOf(entrySection.getString("kind")),
                             new BigDecimal(entrySection.getString("amount", "0")),
                             new BigDecimal(entrySection.getString("resulting-balance", "0")),
-                            new TransactionActor(
-                                    TransactionActorType.valueOf(actorSection.getString("type", TransactionActorType.SYSTEM.name())),
-                                    actorSection.getString("id") == null ? null : UUID.fromString(actorSection.getString("id")),
-                                    actorSection.getString("name"),
-                                    actorSection.getString("source")
-                            ),
+                            actor,
                             entrySection.getString("reason"),
                             entrySection.getLong("created-at")
                     ));

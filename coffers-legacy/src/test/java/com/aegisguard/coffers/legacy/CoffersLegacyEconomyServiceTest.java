@@ -85,6 +85,24 @@ class CoffersLegacyEconomyServiceTest {
         assertEquals(new BigDecimal("0.00"), service.getBalance(accountId, "coins"));
     }
 
+    @Test
+    void nullActorIsNormalizedForStandaloneApiCallers() {
+        CoffersLegacyEconomyService service = new CoffersLegacyEconomyService(
+                Arrays.asList(currency("coins")),
+                "coins",
+                new NoOpLegacyStorage(),
+                10,
+                new LegacyStorageSnapshot(Collections.<UUID, Map<String, BigDecimal>>emptyMap(), Collections.<UUID, List<LegacyLedgerEntry>>emptyMap()),
+                Logger.getAnonymousLogger()
+        );
+
+        UUID accountId = UUID.randomUUID();
+        LegacyTransactionResult result = service.deposit(accountId, "coins", new BigDecimal("5.00"), null, "Plugin deposit");
+
+        assertTrue(result.isSuccessful());
+        assertEquals("System", service.recentTransactions(accountId, 10).get(0).getActor().getActorName());
+    }
+
     private static LegacyCurrencyDefinition currency(final String id) {
         return new LegacyCurrencyDefinition(
                 id,
