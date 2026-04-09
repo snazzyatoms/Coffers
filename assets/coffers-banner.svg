@@ -1,0 +1,86 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="112" y1="76" x2="1150" y2="582" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07242A"/>
+      <stop offset="0.45" stop-color="#0E3D43"/>
+      <stop offset="1" stop-color="#1A5C57"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="199" y1="126" x2="1073" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D2D33" stop-opacity="0.94"/>
+      <stop offset="1" stop-color="#082126" stop-opacity="0.86"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="286" y1="165" x2="1008" y2="486" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7E2A1"/>
+      <stop offset="0.35" stop-color="#E9BE5B"/>
+      <stop offset="0.72" stop-color="#C98C2F"/>
+      <stop offset="1" stop-color="#8E5A18"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(930 208) rotate(125.944) scale(348.589 340.891)">
+      <stop stop-color="#F9D170" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#F9D170" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="143" y="102" width="994" height="444" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="16"/>
+      <feGaussianBlur stdDeviation="24"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0117647 0 0 0 0 0.0862745 0 0 0 0 0.0980392 0 0 0 0.42 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_2"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_2" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="640" rx="36" fill="url(#bg)"/>
+  <circle cx="1026" cy="170" r="255" fill="url(#glow)"/>
+  <circle cx="170" cy="570" r="180" fill="#123C42" fill-opacity="0.55"/>
+  <circle cx="1162" cy="556" r="144" fill="#15464A" fill-opacity="0.55"/>
+
+  <g filter="url(#shadow)">
+    <rect x="191" y="134" width="898" height="348" rx="28" fill="url(#panel)"/>
+    <rect x="191.75" y="134.75" width="896.5" height="346.5" rx="27.25" stroke="#F0D28B" stroke-opacity="0.24" stroke-width="1.5"/>
+  </g>
+
+  <path d="M231 214C231 202.954 239.954 194 251 194H432C443.046 194 452 202.954 452 214V396C452 407.046 443.046 416 432 416H251C239.954 416 231 407.046 231 396V214Z" fill="#0F2D32"/>
+  <path d="M249 210C249 205.582 252.582 202 257 202H426C430.418 202 434 205.582 434 210V250H249V210Z" fill="#18464A"/>
+  <path d="M265 258H418V390C418 394.418 414.418 398 410 398H273C268.582 398 265 394.418 265 390V258Z" fill="#0A2024"/>
+  <path d="M293 240C293 213.49 314.49 192 341 192C367.51 192 389 213.49 389 240V256H361V240C361 228.954 352.046 220 341 220C329.954 220 321 228.954 321 240V256H293V240Z" fill="url(#gold)"/>
+  <rect x="299" y="284" width="84" height="84" rx="20" fill="url(#gold)"/>
+  <circle cx="341" cy="326" r="14" fill="#0E3035"/>
+  <rect x="337" y="322" width="8" height="28" rx="4" fill="#0E3035"/>
+  <path d="M256 250H426" stroke="#EBCB81" stroke-opacity="0.4" stroke-width="3"/>
+  <path d="M282 276H402" stroke="#19474C" stroke-width="3" stroke-linecap="round"/>
+
+  <circle cx="424" cy="178" r="28" fill="#0B252A"/>
+  <circle cx="424" cy="178" r="23" fill="url(#gold)"/>
+  <path d="M424 162V194" stroke="#113338" stroke-width="5" stroke-linecap="round"/>
+  <path d="M411 178H437" stroke="#113338" stroke-width="5" stroke-linecap="round"/>
+
+  <circle cx="472" cy="416" r="22" fill="#0B252A"/>
+  <circle cx="472" cy="416" r="18" fill="url(#gold)"/>
+  <path d="M472 404V428" stroke="#113338" stroke-width="4" stroke-linecap="round"/>
+  <path d="M462 416H482" stroke="#113338" stroke-width="4" stroke-linecap="round"/>
+
+  <text x="522" y="250" fill="#F8EAC2" font-family="Georgia, 'Times New Roman', serif" font-size="78" font-weight="700" letter-spacing="6">COFFERS</text>
+  <text x="526" y="298" fill="#E5C16D" font-family="Verdana, Geneva, sans-serif" font-size="21" font-weight="700" letter-spacing="4">MODERN ECONOMY FOR PAPER</text>
+  <text x="525" y="356" fill="#CFE2DC" font-family="Verdana, Geneva, sans-serif" font-size="28" font-weight="400">Built from scratch with Vault compatibility</text>
+  <text x="525" y="396" fill="#CFE2DC" font-family="Verdana, Geneva, sans-serif" font-size="28" font-weight="400">and a clean developer API.</text>
+
+  <path d="M526 438H874" stroke="#D4AA54" stroke-width="3" stroke-linecap="round"/>
+  <path d="M892 438H955" stroke="#D4AA54" stroke-opacity="0.4" stroke-width="3" stroke-linecap="round"/>
+
+  <circle cx="1065" cy="258" r="44" fill="#0B252A" fill-opacity="0.8"/>
+  <circle cx="1065" cy="258" r="35" fill="url(#gold)"/>
+  <path d="M1048 258H1082" stroke="#12363A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1065 241V275" stroke="#12363A" stroke-width="6" stroke-linecap="round"/>
+
+  <circle cx="1008" cy="341" r="26" fill="#0B252A" fill-opacity="0.84"/>
+  <circle cx="1008" cy="341" r="20" fill="url(#gold)"/>
+  <path d="M999 341H1017" stroke="#12363A" stroke-width="4" stroke-linecap="round"/>
+  <path d="M1008 332V350" stroke="#12363A" stroke-width="4" stroke-linecap="round"/>
+
+  <circle cx="1106" cy="358" r="18" fill="#0B252A" fill-opacity="0.88"/>
+  <circle cx="1106" cy="358" r="13" fill="url(#gold)"/>
+  <path d="M1100 358H1112" stroke="#12363A" stroke-width="3" stroke-linecap="round"/>
+  <path d="M1106 352V364" stroke="#12363A" stroke-width="3" stroke-linecap="round"/>
+</svg>
