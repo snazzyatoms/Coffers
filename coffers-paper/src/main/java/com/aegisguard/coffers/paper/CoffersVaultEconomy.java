@@ -1,6 +1,7 @@
 package com.aegisguard.coffers.paper;
 
 import com.aegisguard.coffers.api.CoffersEconomy;
+import com.aegisguard.coffers.api.TransactionActor;
 import com.aegisguard.coffers.api.TransactionResult;
 import java.math.BigDecimal;
 import java.util.List;
@@ -121,7 +122,13 @@ final class CoffersVaultEconomy extends AbstractEconomy {
 
     @Override
     public EconomyResponse withdrawPlayer(final OfflinePlayer player, final double amount) {
-        return response(this.economy.withdraw(player.getUniqueId(), BigDecimal.valueOf(amount), "Vault withdraw"));
+        return response(this.economy.withdraw(
+                player.getUniqueId(),
+                this.economy.defaultCurrencyId(),
+                BigDecimal.valueOf(amount),
+                TransactionActor.vault("vault-withdraw"),
+                "Vault withdraw"
+        ));
     }
 
     @Override
@@ -141,7 +148,13 @@ final class CoffersVaultEconomy extends AbstractEconomy {
 
     @Override
     public EconomyResponse depositPlayer(final OfflinePlayer player, final double amount) {
-        return response(this.economy.deposit(player.getUniqueId(), BigDecimal.valueOf(amount), "Vault deposit"));
+        return response(this.economy.deposit(
+                player.getUniqueId(),
+                this.economy.defaultCurrencyId(),
+                BigDecimal.valueOf(amount),
+                TransactionActor.vault("vault-deposit"),
+                "Vault deposit"
+        ));
     }
 
     @Override

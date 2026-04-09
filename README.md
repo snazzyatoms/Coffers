@@ -22,13 +22,22 @@ Vault compatibility is built into the main plugin and can be set to:
 - `enabled`: force Coffers to expose a Vault economy provider when Vault is present
 - `disabled`: never register the Vault bridge
 
+## Storage Backends
+
+Coffers now supports multiple persistence modes:
+
+- `yaml`: simple local file storage for smaller servers that do not want a database
+- `sqlite`: file-based SQL storage for a single server that still wants structured persistence
+- `mysql`: shared database storage for larger or networked setups
+
+Storage mode is configured in `coffers-paper/src/main/resources/config.yml`.
+
 ## Project Layout
 
-- `coffers-paper`: the real Paper plugin server owners install
-- `coffers-api`: the developer-facing API definitions for plugins that want to integrate directly with Coffers
-- `assets`: repository artwork such as the README banner
-- `release`: generated convenience output for final jars
-- `build`: generated Maven build output
+- `coffers-paper`: the main Paper plugin, including commands, storage wiring, Vault compatibility, and migration support
+- `coffers-api`: the shared developer API for currencies, ledger entries, transaction results, and richer integrations
+- storage backends: YAML for simple setups, SQLite for single-server persistence, and MySQL for shared database deployments
+- built-in compatibility: Coffers can register as a Vault economy provider without needing a separate bridge plugin
 
 ## Early Goals
 
@@ -42,15 +51,76 @@ Vault compatibility is built into the main plugin and can be set to:
 Right now Coffers includes:
 
 - a Paper plugin bootstrap
-- a baseline in-memory economy implementation
-- configurable currency names, symbol, starting balance, and fractional digits
+- persistent YAML, SQLite, and MySQL storage options
+- configurable currencies with symbols, starting balances, fractional digits, and formatting rules
+- transaction history with audit metadata
 - built-in Vault compatibility
+- migration helpers for existing Vault-based economy setups
+- a richer API for plugin-to-plugin integrations
 - starter commands:
   - `/coffers balance [player]`
   - `/coffers pay <player> <amount>`
   - `/coffers set <player> <amount>`
+  - `/coffers history [player] [limit]`
+  - `/coffers currencies`
+  - `/coffers migratevault [provider]`
 
 Current compatibility settings live in `coffers-paper/src/main/resources/config.yml`.
+
+## Transaction History And Audit Metadata
+
+Every balance-changing operation recorded by Coffers can include:
+
+- transaction kind
+- currency
+- amount
+- resulting balance
+- reason
+- actor type
+- actor identity or source
+- timestamp
+- transfer reference identifiers for related entries
+
+This gives plugin authors and server admins a stronger base for auditing than a simple balance-only economy model.
+
+## Currency And Formatting Support
+
+Coffers supports multiple currencies with per-currency rules, including:
+
+- singular and plural display names
+- symbols
+- starting balances
+- fractional digits
+- grouping separators
+- symbol placement
+- spacing rules
+- trailing zero display rules
+
+The default configuration ships with `coins` and `gems` as examples.
+
+## Migration Helpers
+
+Coffers can import balances from another Vault-backed economy provider already present on the server.
+
+Use:
+
+- `/coffers migratevault`
+- `/coffers migratevault <provider>`
+
+This is intended to make adoption easier for servers currently running a different economy plugin behind Vault.
+
+## Developer API
+
+The API jar exposes richer integration types than the original baseline prototype, including:
+
+- currency definitions and format rules
+- account snapshots
+- transaction results
+- ledger entries
+- transaction actor metadata
+- transaction kinds
+
+This gives other plugins a better foundation than relying only on legacy Vault-style balance calls.
 
 ## Downloads
 
@@ -66,14 +136,6 @@ These ideas were borrowed conceptually, not by copying code:
 - Vault: a central abstraction that many plugins know how to consume
 - Treasury and other modern economy APIs: better separation between API and implementation concerns
 - newer Vault refresh efforts: focusing on modern servers without dragging every old integration into the core design
-
-## Next Milestones
-
-- Replace the in-memory ledger with SQLite/MySQL storage
-- Add transaction history and audit metadata
-- Add configurable currencies and formatting rules
-- Add migration helpers for existing Vault economy setups
-- Expand the API for richer plugin-to-plugin integrations
 
 ## License
 

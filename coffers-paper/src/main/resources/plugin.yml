@@ -8,7 +8,7 @@ softdepend: [Vault]
 commands:
   coffers:
     description: Core Coffers economy commands.
-    usage: /coffers <balance|pay|set>
+    usage: /coffers <balance|pay|set|history|currencies|migratevault>
     permission: coffers.command.use
 permissions:
   coffers.command.use:
@@ -16,4 +16,6 @@ permissions:
   coffers.command.balance.others:
     default: op
   coffers.command.set:
+    default: op
+  coffers.command.migratevault:
     default: op

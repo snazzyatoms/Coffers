@@ -1,34 +1,61 @@
 package com.aegisguard.coffers.paper;
 
 import com.aegisguard.coffers.api.CoffersEconomy;
+import com.aegisguard.coffers.api.CurrencyDefinition;
+import com.aegisguard.coffers.api.CurrencyFormat;
 import java.math.BigDecimal;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Properties;
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class CoffersPlugin extends JavaPlugin {
 
-    private InMemoryCoffersEconomy economy;
+    private CoffersEconomyService economy;
     private Economy vaultEconomyProvider;
+    private VaultMigrationService migrationService;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
-        this.economy = new InMemoryCoffersEconomy(
-                getConfig().getString("currency.singular", "coin"),
-                getConfig().getString("currency.plural", "coins"),
-                getConfig().getString("currency.symbol", "$"),
-                BigDecimal.valueOf(getConfig().getDouble("economy.starting-balance", 0.0D)),
-                getConfig().getInt("economy.fractional-digits", 2)
-        );
+        try {
+            final List<CurrencyDefinition> currencies = loadCurrencies();
+            final EconomyStorage storage = createStorage();
+            storage.initialize();
+
+            final String defaultCurrencyId = getConfig().getString("currencies.default",
+                    currencies.isEmpty() ? "coins" : currencies.getFirst().id()
+            );
+            final int historyLimit = getConfig().getInt("history.max-per-account", 50);
+            final StorageSnapshot snapshot = storage.load();
+
+            this.economy = new CoffersEconomyService(
+                    currencies,
+                    defaultCurrencyId,
+                    storage,
+                    historyLimit,
+                    snapshot,
+                    getLogger()
+            );
+            this.migrationService = new VaultMigrationService(this, this.economy);
+        } catch (final Exception exception) {
+            getLogger().severe("Failed to start Coffers: " + exception.getMessage());
+            exception.printStackTrace();
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
 
         getServer().getServicesManager().register(CoffersEconomy.class, this.economy, this, ServicePriority.Normal);
 
         final PluginCommand command = Objects.requireNonNull(getCommand("coffers"), "coffers command missing from plugin.yml");
-        final CoffersCommand executor = new CoffersCommand(this, this.economy);
+        final CoffersCommand executor = new CoffersCommand(this, this.economy, this.migrationService);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
@@ -40,10 +67,17 @@ public final class CoffersPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         getServer().getServicesManager().unregisterAll(this);
+        if (this.economy != null) {
+            this.economy.close();
+        }
     }
 
     public CoffersEconomy economy() {
         return this.economy;
+    }
+
+    public VaultMigrationService migrationService() {
+        return this.migrationService;
     }
 
     private void registerVaultCompatibility() {
@@ -67,5 +101,88 @@ public final class CoffersPlugin extends JavaPlugin {
         this.vaultEconomyProvider = new CoffersVaultEconomy(this, this.economy);
         getServer().getServicesManager().register(Economy.class, this.vaultEconomyProvider, this, ServicePriority.High);
         getLogger().info("Registered Coffers as a Vault economy provider.");
+    }
+
+    private List<CurrencyDefinition> loadCurrencies() {
+        final List<CurrencyDefinition> currencies = new ArrayList<>();
+        final ConfigurationSection definitionsSection = getConfig().getConfigurationSection("currencies.definitions");
+        if (definitionsSection != null) {
+            for (final String currencyId : definitionsSection.getKeys(false)) {
+                final ConfigurationSection section = definitionsSection.getConfigurationSection(currencyId);
+                if (section == null) {
+                    continue;
+                }
+                currencies.add(readCurrency(currencyId, section));
+            }
+        }
+
+        if (!currencies.isEmpty()) {
+            return currencies;
+        }
+
+        final CurrencyFormat fallbackFormat = new CurrencyFormat(true, false, true, true, true);
+        currencies.add(new CurrencyDefinition(
+                "coins",
+                getConfig().getString("currency.singular", "coin"),
+                getConfig().getString("currency.plural", "coins"),
+                getConfig().getString("currency.symbol", "$"),
+                getConfig().getInt("economy.fractional-digits", 2),
+                BigDecimal.valueOf(getConfig().getDouble("economy.starting-balance", 0.0D)),
+                fallbackFormat
+        ));
+        return currencies;
+    }
+
+    private CurrencyDefinition readCurrency(final String currencyId, final ConfigurationSection section) {
+        final ConfigurationSection formatSection = section.getConfigurationSection("format");
+        final CurrencyFormat format = new CurrencyFormat(
+                formatSection == null || formatSection.getBoolean("symbol-first", true),
+                formatSection != null && formatSection.getBoolean("space-between-symbol-and-amount", false),
+                formatSection == null || formatSection.getBoolean("space-between-amount-and-name", true),
+                formatSection == null || formatSection.getBoolean("use-grouping", true),
+                formatSection == null || formatSection.getBoolean("show-trailing-zeros", true)
+        );
+
+        return new CurrencyDefinition(
+                currencyId.toLowerCase(),
+                section.getString("singular", currencyId),
+                section.getString("plural", currencyId + "s"),
+                section.getString("symbol", ""),
+                section.getInt("fractional-digits", 2),
+                new BigDecimal(section.getString("starting-balance", "0")),
+                format
+        );
+    }
+
+    private EconomyStorage createStorage() {
+        final StorageType storageType = StorageType.fromConfig(getConfig().getString("storage.type", "yaml"));
+        return switch (storageType) {
+            case YAML -> new YamlEconomyStorage(
+                    this,
+                    getConfig().getString("storage.yaml.accounts-file", "accounts.yml"),
+                    getConfig().getString("storage.yaml.history-file", "history.yml")
+            );
+            case SQLITE -> {
+                final String databaseFile = getConfig().getString("storage.sqlite.file", "coffers.db");
+                final File resolvedFile = new File(getDataFolder(), databaseFile);
+                yield new SqlEconomyStorage("jdbc:sqlite:" + resolvedFile.getAbsolutePath(), new Properties());
+            }
+            case MYSQL -> {
+                final String host = getConfig().getString("storage.mysql.host", "localhost");
+                final int port = getConfig().getInt("storage.mysql.port", 3306);
+                final String database = getConfig().getString("storage.mysql.database", "coffers");
+                final String parameters = getConfig().getString(
+                        "storage.mysql.parameters",
+                        "useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+                );
+                final Properties properties = new Properties();
+                properties.setProperty("user", getConfig().getString("storage.mysql.username", "root"));
+                properties.setProperty("password", getConfig().getString("storage.mysql.password", ""));
+                yield new SqlEconomyStorage(
+                        "jdbc:mysql://" + host + ":" + port + "/" + database + "?" + parameters,
+                        properties
+                );
+            }
+        };
     }
 }
