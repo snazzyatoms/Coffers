@@ -67,19 +67,6 @@ These ideas were borrowed conceptually, not by copying code:
 - Treasury and other modern economy APIs: better separation between API and implementation concerns
 - newer Vault refresh efforts: focusing on modern servers without dragging every old integration into the core design
 
-## Recommended Repository Setup
-
-This project is meant to live in one GitHub repository:
-
-- `coffers-api`
-- `coffers-paper`
-- `pom.xml`
-- `README.md`
-- `.gitignore`
-- `assets`
-
-Publish the jars separately as release assets rather than committing them into the repository.
-
 ## Next Milestones
 
 - Replace the in-memory ledger with SQLite/MySQL storage
