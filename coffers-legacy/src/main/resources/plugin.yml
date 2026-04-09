@@ -1,0 +1,21 @@
+name: CoffersLegacy
+version: ${project.version}
+main: com.aegisguard.coffers.legacy.CoffersLegacyPlugin
+api-version: '1.16'
+authors: [Aegis Guard]
+description: Legacy Coffers economy plugin for older Spigot and Paper compatible servers.
+softdepend: [Vault]
+commands:
+  cofferslegacy:
+    description: Core Coffers Legacy economy commands.
+    usage: /cofferslegacy <balance|pay|set|history|currencies|migratevault>
+    permission: cofferslegacy.command.use
+permissions:
+  cofferslegacy.command.use:
+    default: true
+  cofferslegacy.command.balance.others:
+    default: op
+  cofferslegacy.command.set:
+    default: op
+  cofferslegacy.command.migratevault:
+    default: op

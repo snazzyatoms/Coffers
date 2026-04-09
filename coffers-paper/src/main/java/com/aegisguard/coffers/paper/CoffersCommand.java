@@ -38,18 +38,26 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        return switch (args[0].toLowerCase(Locale.ROOT)) {
-            case "balance" -> handleBalance(sender, args);
-            case "pay" -> handlePay(sender, args);
-            case "set" -> handleSet(sender, args);
-            case "history" -> handleHistory(sender, args);
-            case "currencies" -> handleCurrencies(sender);
-            case "migratevault" -> handleMigrateVault(sender, args);
-            default -> {
-                sendUsage(sender);
-                yield true;
-            }
-        };
+        try {
+            return switch (args[0].toLowerCase(Locale.ROOT)) {
+                case "balance" -> handleBalance(sender, args);
+                case "pay" -> handlePay(sender, args);
+                case "set" -> handleSet(sender, args);
+                case "history" -> handleHistory(sender, args);
+                case "currencies" -> handleCurrencies(sender);
+                case "migratevault" -> handleMigrateVault(sender, args);
+                default -> {
+                    sendUsage(sender);
+                    yield true;
+                }
+            };
+        } catch (final IllegalArgumentException exception) {
+            sender.sendMessage("Coffers error: " + exception.getMessage());
+            return true;
+        } catch (final IllegalStateException exception) {
+            sender.sendMessage("Coffers failed to complete that request: " + exception.getMessage());
+            return true;
+        }
     }
 
     private boolean handleBalance(final CommandSender sender, final String[] args) {
@@ -60,6 +68,13 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             }
 
             final String currencyId = args.length >= 2 ? args[1] : this.economy.defaultCurrencyId();
+            final BigDecimal balance = this.economy.getBalance(player.getUniqueId(), currencyId);
+            sender.sendMessage("Balance: " + this.economy.format(currencyId, balance));
+            return true;
+        }
+
+        if (args.length == 2 && sender instanceof Player player && this.economy.currency(args[1]).isPresent()) {
+            final String currencyId = args[1];
             final BigDecimal balance = this.economy.getBalance(player.getUniqueId(), currencyId);
             sender.sendMessage("Balance: " + this.economy.format(currencyId, balance));
             return true;
@@ -143,6 +158,10 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
                 actorFromSender(sender, "command:/coffers set"),
                 "Admin set balance"
         );
+        if (!result.successful()) {
+            sender.sendMessage("Balance update failed: " + result.message());
+            return true;
+        }
         sender.sendMessage("Set " + displayName(target) + " to " + this.economy.format(result.currencyId(), result.balance()) + ".");
         return true;
     }

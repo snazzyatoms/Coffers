@@ -10,19 +10,20 @@
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>coffers-paper</artifactId>
-    <name>Coffers Paper</name>
+    <artifactId>coffers-legacy</artifactId>
+    <name>Coffers Legacy</name>
     <packaging>jar</packaging>
+
+    <properties>
+        <maven.compiler.release>8</maven.compiler.release>
+    </properties>
 
     <dependencies>
         <dependency>
-            <groupId>com.aegisguard.coffers</groupId>
-            <artifactId>coffers-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.papermc.paper</groupId>
-            <artifactId>paper-api</artifactId>
+            <groupId>org.spigotmc</groupId>
+            <artifactId>spigot-api</artifactId>
+            <version>${spigot.legacy.api.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.github.milkbowl</groupId>
@@ -35,9 +36,9 @@
             <version>3.50.3.0</version>
         </dependency>
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <version>9.4.0</version>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -47,7 +48,7 @@
     </dependencies>
 
     <build>
-        <finalName>Coffers</finalName>
+        <finalName>Coffers-Legacy</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -86,10 +87,7 @@
                                 <mkdir dir="${coffers.release.root}"/>
                                 <delete file="${project.build.directory}/original-${project.build.finalName}.jar"/>
                                 <copy file="${project.build.directory}/${project.build.finalName}.jar"
-                                      tofile="${coffers.release.root}/Coffers.jar"
-                                      overwrite="true"/>
-                                <copy file="${coffers.build.root}/coffers-api/Coffers-API.jar"
-                                      tofile="${coffers.release.root}/Coffers-API.jar"
+                                      tofile="${coffers.release.root}/Coffers-Legacy.jar"
                                       overwrite="true"/>
                             </target>
                         </configuration>

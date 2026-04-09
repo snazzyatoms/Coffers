@@ -1,0 +1,48 @@
+compatibility:
+  vault-bridge: auto
+
+storage:
+  type: yaml
+  yaml:
+    accounts-file: legacy-accounts.yml
+    history-file: legacy-history.yml
+  sqlite:
+    file: coffers-legacy.db
+  mysql:
+    host: localhost
+    port: 3306
+    database: coffers_legacy
+    username: root
+    password: change-me
+    parameters: useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+
+history:
+  max-per-account: 50
+
+currencies:
+  default: coins
+  definitions:
+    coins:
+      singular: coin
+      plural: coins
+      symbol: $
+      fractional-digits: 2
+      starting-balance: 100.00
+      format:
+        symbol-first: true
+        space-between-symbol-and-amount: false
+        space-between-amount-and-name: true
+        use-grouping: true
+        show-trailing-zeros: true
+    gems:
+      singular: gem
+      plural: gems
+      symbol: *
+      fractional-digits: 0
+      starting-balance: 0
+      format:
+        symbol-first: false
+        space-between-symbol-and-amount: true
+        space-between-amount-and-name: true
+        use-grouping: true
+        show-trailing-zeros: false

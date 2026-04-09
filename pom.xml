@@ -15,13 +15,16 @@
     <modules>
         <module>coffers-api</module>
         <module>coffers-paper</module>
+        <module>coffers-legacy</module>
     </modules>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
         <paper.api.version>1.21.11-R0.1-SNAPSHOT</paper.api.version>
+        <spigot.legacy.api.version>1.16.5-R0.1-SNAPSHOT</spigot.legacy.api.version>
         <vault.api.version>1.7.1</vault.api.version>
+        <junit.jupiter.version>5.13.4</junit.jupiter.version>
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
         <coffers.build.root>${maven.multiModuleProjectDirectory}/build</coffers.build.root>
         <coffers.release.root>${maven.multiModuleProjectDirectory}/release</coffers.release.root>
@@ -40,6 +43,12 @@
                 <artifactId>VaultAPI</artifactId>
                 <version>${vault.api.version}</version>
                 <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit.jupiter.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -64,6 +73,10 @@
         <repository>
             <id>papermc</id>
             <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+        <repository>
+            <id>spigotmc-repo</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
         </repository>
         <repository>
             <id>jitpack.io</id>

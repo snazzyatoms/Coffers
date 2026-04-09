@@ -48,7 +48,13 @@ final class CoffersEconomyService implements CoffersEconomy {
         for (final CurrencyDefinition currency : currencies) {
             this.currencies.put(currency.id().toLowerCase(Locale.ROOT), currency);
         }
+        if (this.currencies.isEmpty()) {
+            throw new IllegalArgumentException("At least one currency must be configured.");
+        }
         this.defaultCurrencyId = defaultCurrencyId.toLowerCase(Locale.ROOT);
+        if (!this.currencies.containsKey(this.defaultCurrencyId)) {
+            throw new IllegalArgumentException("Default currency is not registered: " + defaultCurrencyId);
+        }
         this.storage = storage;
         this.historyLimit = historyLimit;
         this.logger = logger;
