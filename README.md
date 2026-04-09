@@ -1,3 +1,5 @@
+![Coffers Banner](assets/coffers-banner.svg)
+
 # Coffers
 
 Coffers is a fresh, from-scratch economy platform for modern Minecraft servers.
