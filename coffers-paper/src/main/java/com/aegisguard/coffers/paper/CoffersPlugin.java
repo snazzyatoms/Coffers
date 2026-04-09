@@ -3,8 +3,8 @@ package com.aegisguard.coffers.paper;
 import com.aegisguard.coffers.api.CoffersEconomy;
 import com.aegisguard.coffers.api.CurrencyDefinition;
 import com.aegisguard.coffers.api.CurrencyFormat;
-import java.math.BigDecimal;
 import java.io.File;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -20,12 +20,64 @@ public final class CoffersPlugin extends JavaPlugin {
     private CoffersEconomyService economy;
     private Economy vaultEconomyProvider;
     private VaultMigrationService migrationService;
+    private SnapshotArchiveService archiveService;
+    private CoffersPlaceholderExpansion placeholderExpansion;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        this.archiveService = new SnapshotArchiveService(this);
 
+        final PluginCommand command = Objects.requireNonNull(getCommand("coffers"), "coffers command missing from plugin.yml");
+        final CoffersCommand executor = new CoffersCommand(this);
+        command.setExecutor(executor);
+        command.setTabCompleter(executor);
+
+        if (!loadRuntime(false)) {
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        getLogger().info("Coffers is ready.");
+    }
+
+    @Override
+    public void onDisable() {
+        shutdownRuntime();
+    }
+
+    public CoffersEconomy economy() {
+        return this.economy;
+    }
+
+    CoffersEconomyService economyService() {
+        return this.economy;
+    }
+
+    public VaultMigrationService migrationService() {
+        return this.migrationService;
+    }
+
+    SnapshotArchiveService archiveService() {
+        return this.archiveService;
+    }
+
+    boolean reloadRuntime() {
+        reloadConfig();
+        shutdownRuntime();
+        return loadRuntime(true);
+    }
+
+    private boolean loadRuntime(final boolean reloading) {
         try {
+            final List<String> configErrors = CoffersConfigValidator.validate(getConfig());
+            if (!configErrors.isEmpty()) {
+                for (final String error : configErrors) {
+                    getLogger().severe("Config error: " + error);
+                }
+                return false;
+            }
+
             final List<CurrencyDefinition> currencies = loadCurrencies();
             final EconomyStorage storage = createStorage();
             storage.initialize();
@@ -42,42 +94,35 @@ public final class CoffersPlugin extends JavaPlugin {
                     storage,
                     historyLimit,
                     snapshot,
-                    getLogger()
+                    getLogger(),
+                    this
             );
             this.migrationService = new VaultMigrationService(this, this.economy);
+
+            getServer().getServicesManager().register(CoffersEconomy.class, this.economy, this, ServicePriority.Normal);
+            registerVaultCompatibility();
+            registerPlaceholderSupport();
+
+            if (reloading) {
+                getLogger().info("Reloaded Coffers runtime successfully.");
+            }
+            return true;
         } catch (final Exception exception) {
             getLogger().severe("Failed to start Coffers: " + exception.getMessage());
             exception.printStackTrace();
-            getServer().getPluginManager().disablePlugin(this);
-            return;
+            return false;
         }
-
-        getServer().getServicesManager().register(CoffersEconomy.class, this.economy, this, ServicePriority.Normal);
-
-        final PluginCommand command = Objects.requireNonNull(getCommand("coffers"), "coffers command missing from plugin.yml");
-        final CoffersCommand executor = new CoffersCommand(this, this.economy, this.migrationService);
-        command.setExecutor(executor);
-        command.setTabCompleter(executor);
-
-        registerVaultCompatibility();
-
-        getLogger().info("Coffers is ready.");
     }
 
-    @Override
-    public void onDisable() {
+    private void shutdownRuntime() {
+        unregisterPlaceholderSupport();
         getServer().getServicesManager().unregisterAll(this);
+        this.vaultEconomyProvider = null;
+        this.migrationService = null;
         if (this.economy != null) {
             this.economy.close();
+            this.economy = null;
         }
-    }
-
-    public CoffersEconomy economy() {
-        return this.economy;
-    }
-
-    public VaultMigrationService migrationService() {
-        return this.migrationService;
     }
 
     private void registerVaultCompatibility() {
@@ -103,13 +148,31 @@ public final class CoffersPlugin extends JavaPlugin {
         getLogger().info("Registered Coffers as a Vault economy provider.");
     }
 
+    private void registerPlaceholderSupport() {
+        unregisterPlaceholderSupport();
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") == null) {
+            return;
+        }
+
+        this.placeholderExpansion = new CoffersPlaceholderExpansion(this);
+        this.placeholderExpansion.register();
+        getLogger().info("Registered Coffers PlaceholderAPI expansion.");
+    }
+
+    private void unregisterPlaceholderSupport() {
+        if (this.placeholderExpansion != null) {
+            this.placeholderExpansion.unregister();
+            this.placeholderExpansion = null;
+        }
+    }
+
     private List<CurrencyDefinition> loadCurrencies() {
         final List<CurrencyDefinition> currencies = new ArrayList<>();
         final ConfigurationSection definitionsSection = getConfig().getConfigurationSection("currencies.definitions");
         if (definitionsSection != null) {
             for (final String currencyId : definitionsSection.getKeys(false)) {
                 final ConfigurationSection section = definitionsSection.getConfigurationSection(currencyId);
-                if (section == null) {
+                if (section == null || !section.getBoolean("enabled", true)) {
                     continue;
                 }
                 currencies.add(readCurrency(currencyId, section));

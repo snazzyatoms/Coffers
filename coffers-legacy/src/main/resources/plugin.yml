@@ -15,6 +15,8 @@ permissions:
     default: true
   cofferslegacy.command.balance.others:
     default: op
+  cofferslegacy.command.history.others:
+    default: op
   cofferslegacy.command.set:
     default: op
   cofferslegacy.command.migratevault:

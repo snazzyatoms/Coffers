@@ -4,18 +4,26 @@ main: com.aegisguard.coffers.paper.CoffersPlugin
 api-version: '1.21'
 authors: [Aegis Guard]
 description: A modern economy plugin built for Coffers-aware integrations and legacy Vault bridges.
-softdepend: [Vault]
+softdepend: [Vault, PlaceholderAPI]
 commands:
   coffers:
     description: Core Coffers economy commands.
-    usage: /coffers <balance|pay|set|history|currencies|migratevault>
+    usage: /coffers <balance|pay|set|history|top|currencies|migratevault|reload|backup|export|import>
     permission: coffers.command.use
 permissions:
   coffers.command.use:
     default: true
   coffers.command.balance.others:
     default: op
+  coffers.command.history.others:
+    default: op
   coffers.command.set:
     default: op
   coffers.command.migratevault:
+    default: op
+  coffers.command.reload:
+    default: op
+  coffers.command.backup:
+    default: op
+  coffers.command.import:
     default: op

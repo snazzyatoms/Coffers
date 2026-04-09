@@ -25,6 +25,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
 
 final class CoffersEconomyService implements CoffersEconomy {
 
@@ -35,6 +37,7 @@ final class CoffersEconomyService implements CoffersEconomy {
     private final EconomyStorage storage;
     private final int historyLimit;
     private final Logger logger;
+    private final JavaPlugin plugin;
 
     CoffersEconomyService(
             final Collection<CurrencyDefinition> currencies,
@@ -42,7 +45,8 @@ final class CoffersEconomyService implements CoffersEconomy {
             final EconomyStorage storage,
             final int historyLimit,
             final StorageSnapshot snapshot,
-            final Logger logger
+            final Logger logger,
+            final JavaPlugin plugin
     ) {
         this.currencies = new LinkedHashMap<>();
         for (final CurrencyDefinition currency : currencies) {
@@ -58,6 +62,7 @@ final class CoffersEconomyService implements CoffersEconomy {
         this.storage = storage;
         this.historyLimit = historyLimit;
         this.logger = logger;
+        this.plugin = plugin;
         this.balances.putAll(snapshot.balances());
         this.history.putAll(snapshot.history());
     }
@@ -137,7 +142,9 @@ final class CoffersEconomyService implements CoffersEconomy {
         );
         persistAccount(accountId);
         persistHistory(accountId);
-        return TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextBalance, reason, entry);
+        final TransactionResult result = TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextBalance, reason, entry);
+        notifyTransaction(TransactionKind.DEPOSIT, accountId, null, normalizedCurrencyId, result, actor);
+        return result;
     }
 
     @Override
@@ -182,7 +189,9 @@ final class CoffersEconomyService implements CoffersEconomy {
         );
         persistAccount(accountId);
         persistHistory(accountId);
-        return TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextBalance, reason, entry);
+        final TransactionResult result = TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextBalance, reason, entry);
+        notifyTransaction(TransactionKind.WITHDRAWAL, accountId, null, normalizedCurrencyId, result, actor);
+        return result;
     }
 
     @Override
@@ -231,7 +240,7 @@ final class CoffersEconomyService implements CoffersEconomy {
                 reason,
                 referenceId
         );
-        recordEntry(
+        final LedgerEntry inEntry = recordEntry(
                 toAccountId,
                 fromAccountId,
                 normalizedCurrencyId,
@@ -247,7 +256,17 @@ final class CoffersEconomyService implements CoffersEconomy {
         persistAccount(toAccountId);
         persistHistory(fromAccountId);
         persistHistory(toAccountId);
-        return TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextFromBalance, reason, outEntry);
+        final TransactionResult result = TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextFromBalance, reason, outEntry);
+        notifyTransaction(TransactionKind.TRANSFER_OUT, fromAccountId, toAccountId, normalizedCurrencyId, result, actor);
+        notifyTransaction(
+                TransactionKind.TRANSFER_IN,
+                toAccountId,
+                fromAccountId,
+                normalizedCurrencyId,
+                TransactionResult.success(normalizedCurrencyId, normalizedAmount, nextToBalance, reason, inEntry),
+                actor
+        );
+        return result;
     }
 
     @Override
@@ -279,14 +298,38 @@ final class CoffersEconomyService implements CoffersEconomy {
         );
         persistAccount(accountId);
         persistHistory(accountId);
-        return TransactionResult.success(normalizedCurrencyId, BigDecimal.ZERO, normalizedAmount, reason, entry);
+        final TransactionResult result = TransactionResult.success(normalizedCurrencyId, BigDecimal.ZERO, normalizedAmount, reason, entry);
+        notifyTransaction(TransactionKind.SET, accountId, null, normalizedCurrencyId, result, actor);
+        return result;
     }
 
     @Override
     public synchronized List<LedgerEntry> recentTransactions(final UUID accountId, final int limit) {
+        return transactionHistory(accountId, 0, limit);
+    }
+
+    @Override
+    public synchronized List<LedgerEntry> transactionHistory(final UUID accountId, final int offset, final int limit) {
         final List<LedgerEntry> entries = new ArrayList<>(this.history.getOrDefault(accountId, List.of()));
         entries.sort(Comparator.comparingLong(LedgerEntry::createdAtEpochMilli).reversed());
-        return entries.stream().limit(Math.max(limit, 0)).toList();
+        return entries.stream()
+                .skip(Math.max(offset, 0))
+                .limit(Math.max(limit, 0))
+                .toList();
+    }
+
+    @Override
+    public synchronized List<AccountSnapshot> topAccounts(final String currencyId, final int limit) {
+        final String normalizedCurrencyId = normalizedCurrencyId(currencyId);
+        return this.balances.entrySet().stream()
+                .map(entry -> new AccountSnapshot(
+                        entry.getKey(),
+                        normalizedCurrencyId,
+                        entry.getValue().getOrDefault(normalizedCurrencyId, startingBalance(normalizedCurrencyId))
+                ))
+                .sorted(Comparator.comparing(AccountSnapshot::balance).reversed())
+                .limit(Math.max(limit, 0))
+                .toList();
     }
 
     @Override
@@ -330,6 +373,42 @@ final class CoffersEconomyService implements CoffersEconomy {
             this.storage.close();
         } catch (final Exception exception) {
             this.logger.warning("Failed to close Coffers storage cleanly: " + exception.getMessage());
+        }
+    }
+
+    synchronized StorageSnapshot snapshot() {
+        final Map<UUID, Map<String, BigDecimal>> balanceCopy = new LinkedHashMap<>();
+        for (final Map.Entry<UUID, Map<String, BigDecimal>> entry : this.balances.entrySet()) {
+            balanceCopy.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+        }
+
+        final Map<UUID, List<LedgerEntry>> historyCopy = new LinkedHashMap<>();
+        for (final Map.Entry<UUID, List<LedgerEntry>> entry : this.history.entrySet()) {
+            historyCopy.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return new StorageSnapshot(balanceCopy, historyCopy);
+    }
+
+    synchronized void replaceSnapshot(final StorageSnapshot snapshot) {
+        this.balances.clear();
+        this.history.clear();
+
+        for (final Map.Entry<UUID, Map<String, BigDecimal>> entry : snapshot.balances().entrySet()) {
+            final Map<String, BigDecimal> accountBalances = new ConcurrentHashMap<>();
+            for (final CurrencyDefinition currency : this.currencies.values()) {
+                final BigDecimal importedBalance = entry.getValue().get(currency.id());
+                accountBalances.put(
+                        currency.id(),
+                        normalize(currency.id(), importedBalance == null ? currency.startingBalance() : importedBalance)
+                );
+            }
+            this.balances.put(entry.getKey(), accountBalances);
+            persistAccount(entry.getKey());
+        }
+
+        for (final Map.Entry<UUID, List<LedgerEntry>> entry : snapshot.history().entrySet()) {
+            this.history.put(entry.getKey(), new ArrayList<>(entry.getValue()));
+            persistHistory(entry.getKey());
         }
     }
 
@@ -389,6 +468,12 @@ final class CoffersEconomyService implements CoffersEconomy {
         return amount.setScale(currency.fractionalDigits(), RoundingMode.HALF_UP);
     }
 
+    private BigDecimal startingBalance(final String currencyId) {
+        return currency(currencyId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown currency: " + currencyId))
+                .startingBalance();
+    }
+
     private String normalizedCurrencyId(final String currencyId) {
         final String normalized = currencyId == null ? this.defaultCurrencyId : currencyId.toLowerCase(Locale.ROOT);
         if (!this.currencies.containsKey(normalized)) {
@@ -411,5 +496,27 @@ final class CoffersEconomyService implements CoffersEconomy {
         } catch (final Exception exception) {
             throw new IllegalStateException("Failed to persist Coffers history for " + accountId, exception);
         }
+    }
+
+    private void notifyTransaction(
+            final TransactionKind kind,
+            final UUID accountId,
+            final UUID counterpartyAccountId,
+            final String currencyId,
+            final TransactionResult result,
+            final TransactionActor actor
+    ) {
+        if (this.plugin == null || !this.plugin.isEnabled()) {
+            return;
+        }
+
+        Bukkit.getPluginManager().callEvent(new CoffersTransactionEvent(
+                accountId,
+                counterpartyAccountId,
+                kind,
+                currencyId,
+                result,
+                actor
+        ));
     }
 }

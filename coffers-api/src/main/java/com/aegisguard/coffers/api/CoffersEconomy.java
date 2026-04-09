@@ -85,6 +85,14 @@ public interface CoffersEconomy {
 
     List<LedgerEntry> recentTransactions(UUID accountId, int limit);
 
+    List<LedgerEntry> transactionHistory(UUID accountId, int offset, int limit);
+
+    default List<AccountSnapshot> topAccounts(final int limit) {
+        return topAccounts(defaultCurrencyId(), limit);
+    }
+
+    List<AccountSnapshot> topAccounts(String currencyId, int limit);
+
     default String format(final BigDecimal amount) {
         return format(defaultCurrencyId(), amount);
     }

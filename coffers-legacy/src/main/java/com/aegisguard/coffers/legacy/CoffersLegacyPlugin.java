@@ -24,6 +24,15 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         saveDefaultConfig();
 
         try {
+            List<String> configErrors = CoffersLegacyConfigValidator.validate(getConfig());
+            if (!configErrors.isEmpty()) {
+                for (String error : configErrors) {
+                    getLogger().severe("Config error: " + error);
+                }
+                getServer().getPluginManager().disablePlugin(this);
+                return;
+            }
+
             List<LegacyCurrencyDefinition> currencies = loadCurrencies();
             LegacyEconomyStorage storage = createStorage();
             storage.initialize();
@@ -86,7 +95,7 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         if (definitionsSection != null) {
             for (String currencyId : definitionsSection.getKeys(false)) {
                 ConfigurationSection section = definitionsSection.getConfigurationSection(currencyId);
-                if (section != null) {
+                if (section != null && section.getBoolean("enabled", true)) {
                     currencies.add(readCurrency(currencyId, section));
                 }
             }

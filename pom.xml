@@ -6,11 +6,11 @@
 
     <groupId>com.aegisguard.coffers</groupId>
     <artifactId>coffers-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Coffers Parent</name>
-    <description>A modern economy platform and Vault bridge for Paper servers.</description>
+    <description>A modern economy platform with legacy support, Vault bridges, and richer integrations for Minecraft servers.</description>
 
     <modules>
         <module>coffers-api</module>
@@ -81,6 +81,10 @@
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
         <repository>
             <id>central</id>

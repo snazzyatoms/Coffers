@@ -31,6 +31,10 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
             statement = connection.createStatement();
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_accounts (account_uuid VARCHAR(36) NOT NULL, currency_id VARCHAR(64) NOT NULL, balance_value VARCHAR(64) NOT NULL, PRIMARY KEY (account_uuid, currency_id))");
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_history (entry_id VARCHAR(36) NOT NULL, account_uuid VARCHAR(36) NOT NULL, reference_id VARCHAR(36) NOT NULL, counterparty_uuid VARCHAR(36) NULL, currency_id VARCHAR(64) NOT NULL, transaction_kind VARCHAR(32) NOT NULL, amount_value VARCHAR(64) NOT NULL, resulting_balance VARCHAR(64) NOT NULL, actor_type VARCHAR(32) NOT NULL, actor_id VARCHAR(36) NULL, actor_name VARCHAR(128) NULL, actor_source VARCHAR(128) NULL, reason_value VARCHAR(255) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (entry_id))");
+            statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_metadata (metadata_key VARCHAR(64) NOT NULL, metadata_value VARCHAR(255) NOT NULL, PRIMARY KEY (metadata_key))");
+            statement.executeUpdate("DELETE FROM coffers_legacy_metadata WHERE metadata_key IN ('storage_engine', 'schema_version')");
+            statement.executeUpdate("INSERT INTO coffers_legacy_metadata (metadata_key, metadata_value) VALUES ('storage_engine', 'sql')");
+            statement.executeUpdate("INSERT INTO coffers_legacy_metadata (metadata_key, metadata_value) VALUES ('schema_version', '1')");
         } finally {
             closeQuietly(statement);
             closeQuietly(connection);

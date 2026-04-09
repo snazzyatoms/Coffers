@@ -21,13 +21,16 @@ final class YamlEconomyStorage implements EconomyStorage {
     private final JavaPlugin plugin;
     private final File accountsFile;
     private final File historyFile;
+    private final File metadataFile;
     private YamlConfiguration accountsConfig;
     private YamlConfiguration historyConfig;
+    private YamlConfiguration metadataConfig;
 
     YamlEconomyStorage(final JavaPlugin plugin, final String accountsFileName, final String historyFileName) {
         this.plugin = plugin;
         this.accountsFile = new File(plugin.getDataFolder(), accountsFileName);
         this.historyFile = new File(plugin.getDataFolder(), historyFileName);
+        this.metadataFile = new File(plugin.getDataFolder(), "storage-metadata.yml");
     }
 
     @Override
@@ -44,8 +47,16 @@ final class YamlEconomyStorage implements EconomyStorage {
             throw new IOException("Could not create history file: " + this.historyFile.getName());
         }
 
+        if (!this.metadataFile.exists() && !this.metadataFile.createNewFile()) {
+            throw new IOException("Could not create metadata file: " + this.metadataFile.getName());
+        }
+
         this.accountsConfig = YamlConfiguration.loadConfiguration(this.accountsFile);
         this.historyConfig = YamlConfiguration.loadConfiguration(this.historyFile);
+        this.metadataConfig = YamlConfiguration.loadConfiguration(this.metadataFile);
+        this.metadataConfig.set("storage.engine", "yaml");
+        this.metadataConfig.set("storage.schema-version", 1);
+        this.metadataConfig.save(this.metadataFile);
     }
 
     @Override

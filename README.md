@@ -50,7 +50,7 @@ The legacy line also ships with YAML, SQLite, and MySQL options through its own 
 
 ## Early Goals
 
-- Provide a clean economy service for current and future plugins.
+- Provide a clean economy service for Aegis Guard and future plugins.
 - Keep Vault support as a built-in bridge, not the center of the design.
 - Start with a small, understandable baseline before adding persistence and advanced features.
 - Make server-owner setup simple while still giving developers a real API to build against.

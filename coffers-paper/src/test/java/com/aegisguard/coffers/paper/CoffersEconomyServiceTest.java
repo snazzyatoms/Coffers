@@ -28,7 +28,8 @@ class CoffersEconomyServiceTest {
                         new NoOpStorage(),
                         10,
                         new StorageSnapshot(Map.of(), Map.of()),
-                        Logger.getAnonymousLogger()
+                        Logger.getAnonymousLogger(),
+                        null
                 )
         );
 
@@ -43,7 +44,8 @@ class CoffersEconomyServiceTest {
                 new NoOpStorage(),
                 10,
                 new StorageSnapshot(Map.of(), Map.of()),
-                Logger.getAnonymousLogger()
+                Logger.getAnonymousLogger(),
+                null
         );
 
         final UUID sender = UUID.randomUUID();
@@ -74,7 +76,8 @@ class CoffersEconomyServiceTest {
                 new NoOpStorage(),
                 10,
                 new StorageSnapshot(Map.of(), Map.of()),
-                Logger.getAnonymousLogger()
+                Logger.getAnonymousLogger(),
+                null
         );
 
         final UUID accountId = UUID.randomUUID();

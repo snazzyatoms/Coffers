@@ -192,6 +192,10 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
             limit = 5;
         } else {
             target = Bukkit.getOfflinePlayer(args[1]);
+            if (!isSelfTarget(sender, target) && !sender.hasPermission("cofferslegacy.command.history.others")) {
+                sender.sendMessage("You do not have permission to view another player's Coffers Legacy history.");
+                return true;
+            }
             limit = args.length >= 3 ? parseLimit(args[2]) : 5;
         }
 
@@ -398,5 +402,9 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
             builder.append(values.get(index));
         }
         return builder.toString();
+    }
+
+    private boolean isSelfTarget(final CommandSender sender, final OfflinePlayer target) {
+        return sender instanceof Player && ((Player) sender).getUniqueId().equals(target.getUniqueId());
     }
 }

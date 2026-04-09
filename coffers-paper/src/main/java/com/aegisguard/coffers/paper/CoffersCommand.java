@@ -1,10 +1,12 @@
 package com.aegisguard.coffers.paper;
 
+import com.aegisguard.coffers.api.AccountSnapshot;
 import com.aegisguard.coffers.api.CoffersEconomy;
 import com.aegisguard.coffers.api.LedgerEntry;
 import com.aegisguard.coffers.api.TransactionActor;
 import com.aegisguard.coffers.api.TransactionKind;
 import com.aegisguard.coffers.api.TransactionResult;
+import java.io.File;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,13 +24,9 @@ import org.bukkit.entity.Player;
 final class CoffersCommand implements CommandExecutor, TabCompleter {
 
     private final CoffersPlugin plugin;
-    private final CoffersEconomy economy;
-    private final VaultMigrationService migrationService;
 
-    CoffersCommand(final CoffersPlugin plugin, final CoffersEconomy economy, final VaultMigrationService migrationService) {
+    CoffersCommand(final CoffersPlugin plugin) {
         this.plugin = plugin;
-        this.economy = economy;
-        this.migrationService = migrationService;
     }
 
     @Override
@@ -38,14 +36,24 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (this.plugin.economy() == null) {
+            sender.sendMessage("Coffers is not fully loaded yet.");
+            return true;
+        }
+
         try {
             return switch (args[0].toLowerCase(Locale.ROOT)) {
                 case "balance" -> handleBalance(sender, args);
                 case "pay" -> handlePay(sender, args);
                 case "set" -> handleSet(sender, args);
-                case "history" -> handleHistory(sender, args);
+                case "history", "transactionhistory" -> handleHistory(sender, args);
                 case "currencies" -> handleCurrencies(sender);
                 case "migratevault" -> handleMigrateVault(sender, args);
+                case "reload" -> handleReload(sender);
+                case "top" -> handleTop(sender, args);
+                case "backup" -> handleBackup(sender);
+                case "export" -> handleExport(sender, args);
+                case "import" -> handleImport(sender, args);
                 default -> {
                     sendUsage(sender);
                     yield true;
@@ -67,16 +75,16 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            final String currencyId = args.length >= 2 ? args[1] : this.economy.defaultCurrencyId();
-            final BigDecimal balance = this.economy.getBalance(player.getUniqueId(), currencyId);
-            sender.sendMessage("Balance: " + this.economy.format(currencyId, balance));
+            final String currencyId = args.length >= 2 ? args[1] : economy().defaultCurrencyId();
+            final BigDecimal balance = economy().getBalance(player.getUniqueId(), currencyId);
+            sender.sendMessage("Balance: " + economy().format(currencyId, balance));
             return true;
         }
 
-        if (args.length == 2 && sender instanceof Player player && this.economy.currency(args[1]).isPresent()) {
+        if (args.length == 2 && sender instanceof Player player && economy().currency(args[1]).isPresent()) {
             final String currencyId = args[1];
-            final BigDecimal balance = this.economy.getBalance(player.getUniqueId(), currencyId);
-            sender.sendMessage("Balance: " + this.economy.format(currencyId, balance));
+            final BigDecimal balance = economy().getBalance(player.getUniqueId(), currencyId);
+            sender.sendMessage("Balance: " + economy().format(currencyId, balance));
             return true;
         }
 
@@ -86,9 +94,9 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         }
 
         final OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-        final String currencyId = args.length >= 3 ? args[2] : this.economy.defaultCurrencyId();
-        final BigDecimal balance = this.economy.getBalance(target.getUniqueId(), currencyId);
-        sender.sendMessage(displayName(target) + " has " + this.economy.format(currencyId, balance));
+        final String currencyId = args.length >= 3 ? args[2] : economy().defaultCurrencyId();
+        final BigDecimal balance = economy().getBalance(target.getUniqueId(), currencyId);
+        sender.sendMessage(displayName(target) + " has " + economy().format(currencyId, balance));
         return true;
     }
 
@@ -113,9 +121,9 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         if (amount == null) {
             return true;
         }
-        final String currencyId = args.length >= 4 ? args[3] : this.economy.defaultCurrencyId();
+        final String currencyId = args.length >= 4 ? args[3] : economy().defaultCurrencyId();
 
-        final TransactionResult result = this.economy.transfer(
+        final TransactionResult result = economy().transfer(
                 player.getUniqueId(),
                 target.getUniqueId(),
                 currencyId,
@@ -129,7 +137,7 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        sender.sendMessage("Sent " + this.economy.format(result.currencyId(), result.amount()) + " to " + displayName(target) + ".");
+        sender.sendMessage("Sent " + economy().format(result.currencyId(), result.amount()) + " to " + displayName(target) + ".");
         return true;
     }
 
@@ -149,9 +157,9 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         if (amount == null) {
             return true;
         }
-        final String currencyId = args.length >= 4 ? args[3] : this.economy.defaultCurrencyId();
+        final String currencyId = args.length >= 4 ? args[3] : economy().defaultCurrencyId();
 
-        final TransactionResult result = this.economy.setBalance(
+        final TransactionResult result = economy().setBalance(
                 target.getUniqueId(),
                 currencyId,
                 amount,
@@ -162,7 +170,7 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("Balance update failed: " + result.message());
             return true;
         }
-        sender.sendMessage("Set " + displayName(target) + " to " + this.economy.format(result.currencyId(), result.balance()) + ".");
+        sender.sendMessage("Set " + displayName(target) + " to " + economy().format(result.currencyId(), result.balance()) + ".");
         return true;
     }
 
@@ -179,10 +187,14 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             limit = 5;
         } else {
             target = Bukkit.getOfflinePlayer(args[1]);
+            if (!isSelfTarget(sender, target) && !sender.hasPermission("coffers.command.history.others")) {
+                sender.sendMessage("You do not have permission to view another player's Coffers history.");
+                return true;
+            }
             limit = args.length >= 3 ? parseLimit(args[2]) : 5;
         }
 
-        final List<LedgerEntry> entries = this.economy.recentTransactions(target.getUniqueId(), limit);
+        final List<LedgerEntry> entries = economy().transactionHistory(target.getUniqueId(), 0, limit);
         if (entries.isEmpty()) {
             sender.sendMessage("No Coffers history exists for " + displayName(target) + ".");
             return true;
@@ -196,8 +208,8 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean handleCurrencies(final CommandSender sender) {
-        final Collection<String> descriptions = this.economy.currencies().stream()
-                .map(currency -> currency.id() + " -> " + this.economy.format(currency.id(), currency.startingBalance()))
+        final Collection<String> descriptions = economy().currencies().stream()
+                .map(currency -> currency.id() + " -> " + economy().format(currency.id(), currency.startingBalance()))
                 .toList();
         sender.sendMessage("Available Coffers currencies:");
         for (final String description : descriptions) {
@@ -214,17 +226,112 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
 
         final String providerName = args.length >= 2 ? args[1] : null;
         try {
-            final MigrationReport report = this.migrationService.migrate(providerName);
+            final MigrationReport report = migrationService().migrate(providerName);
             sender.sendMessage("Migration completed from " + report.providerName() + ".");
             sender.sendMessage("Imported accounts: " + report.importedAccounts());
             sender.sendMessage("Updated accounts: " + report.updatedAccounts());
             sender.sendMessage("Skipped accounts: " + report.skippedAccounts());
         } catch (final IllegalStateException exception) {
             sender.sendMessage("Migration failed: " + exception.getMessage());
-            final List<String> providers = this.migrationService.availableProviders();
+            final List<String> providers = migrationService().availableProviders();
             if (!providers.isEmpty()) {
                 sender.sendMessage("Available providers: " + String.join(", ", providers));
             }
+        }
+        return true;
+    }
+
+    private boolean handleReload(final CommandSender sender) {
+        if (!sender.hasPermission("coffers.command.reload")) {
+            sender.sendMessage("You do not have permission to reload Coffers.");
+            return true;
+        }
+
+        if (this.plugin.reloadRuntime()) {
+            sender.sendMessage("Reloaded Coffers successfully.");
+        } else {
+            sender.sendMessage("Coffers reload failed. Check the console for config or storage errors.");
+        }
+        return true;
+    }
+
+    private boolean handleTop(final CommandSender sender, final String[] args) {
+        String currencyId = economy().defaultCurrencyId();
+        int limit = 10;
+
+        if (args.length >= 2) {
+            if (isInteger(args[1])) {
+                limit = parseLimit(args[1]);
+            } else {
+                currencyId = args[1];
+            }
+        }
+        if (args.length >= 3) {
+            limit = parseLimit(args[2]);
+        }
+
+        final List<AccountSnapshot> topAccounts = economy().topAccounts(currencyId, Math.min(limit, 25));
+        sender.sendMessage("Top Coffers accounts for " + currencyId + ":");
+        if (topAccounts.isEmpty()) {
+            sender.sendMessage("- No account data is available yet.");
+            return true;
+        }
+
+        for (int index = 0; index < topAccounts.size(); index++) {
+            final AccountSnapshot snapshot = topAccounts.get(index);
+            final OfflinePlayer player = Bukkit.getOfflinePlayer(snapshot.accountId());
+            sender.sendMessage((index + 1) + ". " + displayName(player) + " - " + economy().format(currencyId, snapshot.balance()));
+        }
+        return true;
+    }
+
+    private boolean handleBackup(final CommandSender sender) {
+        if (!sender.hasPermission("coffers.command.backup")) {
+            sender.sendMessage("You do not have permission to create Coffers backups.");
+            return true;
+        }
+
+        try {
+            final File backupFile = this.plugin.archiveService().backup(this.plugin.economyService().snapshot());
+            sender.sendMessage("Created Coffers backup: " + backupFile.getName());
+        } catch (final Exception exception) {
+            sender.sendMessage("Backup failed: " + exception.getMessage());
+        }
+        return true;
+    }
+
+    private boolean handleExport(final CommandSender sender, final String[] args) {
+        if (!sender.hasPermission("coffers.command.backup")) {
+            sender.sendMessage("You do not have permission to export Coffers data.");
+            return true;
+        }
+
+        final String exportName = args.length >= 2 ? args[1] : null;
+        try {
+            final File exportFile = this.plugin.archiveService().export(exportName, this.plugin.economyService().snapshot());
+            sender.sendMessage("Exported Coffers data to " + exportFile.getName());
+        } catch (final Exception exception) {
+            sender.sendMessage("Export failed: " + exception.getMessage());
+        }
+        return true;
+    }
+
+    private boolean handleImport(final CommandSender sender, final String[] args) {
+        if (!sender.hasPermission("coffers.command.import")) {
+            sender.sendMessage("You do not have permission to import Coffers data.");
+            return true;
+        }
+        if (args.length < 2) {
+            sender.sendMessage("Usage: /coffers import <export-name>");
+            return true;
+        }
+
+        try {
+            final StorageSnapshot imported = this.plugin.archiveService().importSnapshot(args[1]);
+            this.plugin.economyService().replaceSnapshot(imported);
+            sender.sendMessage("Imported Coffers data from " + args[1] + ".");
+        } catch (final Exception exception) {
+            sender.sendMessage("Import failed: " + exception.getMessage());
         }
         return true;
     }
@@ -253,24 +360,44 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("/coffers pay <player> <amount> [currency]");
         sender.sendMessage("/coffers set <player> <amount> [currency]");
         sender.sendMessage("/coffers history [player] [limit]");
+        sender.sendMessage("/coffers top [currency] [limit]");
         sender.sendMessage("/coffers currencies");
         sender.sendMessage("/coffers migratevault [provider]");
+        sender.sendMessage("/coffers reload");
+        sender.sendMessage("/coffers backup");
+        sender.sendMessage("/coffers export [name]");
+        sender.sendMessage("/coffers import <name>");
     }
 
     @Override
     public List<String> onTabComplete(final CommandSender sender, final Command command, final String alias, final String[] args) {
+        if (this.plugin.economy() == null) {
+            return List.of();
+        }
+
         final List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
             completions.add("balance");
             completions.add("pay");
             completions.add("history");
+            completions.add("top");
             completions.add("currencies");
             if (sender.hasPermission("coffers.command.set")) {
                 completions.add("set");
             }
             if (sender.hasPermission("coffers.command.migratevault")) {
                 completions.add("migratevault");
+            }
+            if (sender.hasPermission("coffers.command.reload")) {
+                completions.add("reload");
+            }
+            if (sender.hasPermission("coffers.command.backup")) {
+                completions.add("backup");
+                completions.add("export");
+            }
+            if (sender.hasPermission("coffers.command.import")) {
+                completions.add("import");
             }
             return filter(completions, args[0]);
         }
@@ -282,26 +409,50 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             return filter(completions, args[1]);
         }
 
+        if (args.length == 2 && "top".equalsIgnoreCase(args[0])) {
+            return filter(currencyIds(), args[1]);
+        }
+
         if ((args.length == 3 && "balance".equalsIgnoreCase(args[0]))
                 || (args.length == 4 && List.of("pay", "set").contains(args[0].toLowerCase(Locale.ROOT)))) {
             return filter(currencyIds(), args[args.length - 1]);
         }
 
         if (args.length == 2 && "migratevault".equalsIgnoreCase(args[0])) {
-            return filter(this.migrationService.availableProviders(), args[1]);
+            return filter(migrationService().availableProviders(), args[1]);
+        }
+
+        if (args.length == 2 && "import".equalsIgnoreCase(args[0])) {
+            return filter(exportNames(), args[1]);
         }
 
         return List.of();
     }
 
     private List<String> currencyIds() {
-        return this.economy.currencies().stream().map(currency -> currency.id()).toList();
+        return economy().currencies().stream().map(currency -> currency.id()).toList();
     }
 
     private List<String> filter(final List<String> candidates, final String token) {
         final String needle = token.toLowerCase(Locale.ROOT);
         return candidates.stream()
                 .filter(candidate -> candidate.toLowerCase(Locale.ROOT).startsWith(needle))
+                .toList();
+    }
+
+    private List<String> exportNames() {
+        final File exportDirectory = new File(this.plugin.getDataFolder(), "exports");
+        if (!exportDirectory.exists()) {
+            return List.of();
+        }
+        final File[] files = exportDirectory.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(files)
+                .map(File::getName)
+                .map(name -> name.endsWith(".yml") ? name.substring(0, name.length() - 4) : name)
+                .sorted()
                 .toList();
     }
 
@@ -331,9 +482,9 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         final StringBuilder builder = new StringBuilder();
         builder.append(action)
                 .append(" ")
-                .append(this.economy.format(entry.currencyId(), entry.amount()))
+                .append(economy().format(entry.currencyId(), entry.amount()))
                 .append(" | balance ")
-                .append(this.economy.format(entry.currencyId(), entry.resultingBalance()));
+                .append(economy().format(entry.currencyId(), entry.resultingBalance()));
 
         if (entry.counterpartyAccountId() != null && (entry.kind() == TransactionKind.TRANSFER_IN || entry.kind() == TransactionKind.TRANSFER_OUT)) {
             builder.append(" | other account ").append(entry.counterpartyAccountId());
@@ -345,5 +496,26 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             builder.append(" | by ").append(entry.actor().actorName());
         }
         return builder.toString();
+    }
+
+    private CoffersEconomy economy() {
+        return this.plugin.economy();
+    }
+
+    private VaultMigrationService migrationService() {
+        return Objects.requireNonNull(this.plugin.migrationService(), "Coffers migration service is not available.");
+    }
+
+    private boolean isInteger(final String raw) {
+        try {
+            Integer.parseInt(raw);
+            return true;
+        } catch (final NumberFormatException exception) {
+            return false;
+        }
+    }
+
+    private boolean isSelfTarget(final CommandSender sender, final OfflinePlayer target) {
+        return sender instanceof Player player && player.getUniqueId().equals(target.getUniqueId());
     }
 }

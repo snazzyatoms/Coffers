@@ -122,6 +122,16 @@ class CoffersEconomyDefaultsTest {
         }
 
         @Override
+        public List<LedgerEntry> transactionHistory(final UUID accountId, final int offset, final int limit) {
+            return List.of();
+        }
+
+        @Override
+        public List<AccountSnapshot> topAccounts(final String currencyId, final int limit) {
+            return List.of(new AccountSnapshot(UUID.randomUUID(), currencyId, new BigDecimal("99.99")));
+        }
+
+        @Override
         public String format(final String currencyId, final BigDecimal amount) {
             return currencyId + ":" + amount.toPlainString();
         }

@@ -1,6 +1,9 @@
 compatibility:
   vault-bridge: auto
 
+runtime:
+  schema-version: 1
+
 storage:
   type: yaml
   yaml:
@@ -23,6 +26,7 @@ currencies:
   default: coins
   definitions:
     coins:
+      enabled: true
       singular: coin
       plural: coins
       symbol: $
@@ -35,6 +39,7 @@ currencies:
         use-grouping: true
         show-trailing-zeros: true
     gems:
+      enabled: true
       singular: gem
       plural: gems
       symbol: *

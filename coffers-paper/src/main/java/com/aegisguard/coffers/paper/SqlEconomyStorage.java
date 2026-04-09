@@ -57,6 +57,16 @@ final class SqlEconomyStorage implements EconomyStorage {
                         PRIMARY KEY (entry_id)
                     )
                     """);
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS coffers_metadata (
+                        metadata_key VARCHAR(64) NOT NULL,
+                        metadata_value VARCHAR(255) NOT NULL,
+                        PRIMARY KEY (metadata_key)
+                    )
+                    """);
+            statement.executeUpdate("DELETE FROM coffers_metadata WHERE metadata_key IN ('storage_engine', 'schema_version')");
+            statement.executeUpdate("INSERT INTO coffers_metadata (metadata_key, metadata_value) VALUES ('storage_engine', 'sql')");
+            statement.executeUpdate("INSERT INTO coffers_metadata (metadata_key, metadata_value) VALUES ('schema_version', '1')");
         }
     }
 
