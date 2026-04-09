@@ -1,4 +1,4 @@
-![Coffers Banner](assets/coffers-banner.svg)
+![Coffers Banner](a_digital_illustration_banner_for_coffers_featur.png)
 
 # Coffers
 
