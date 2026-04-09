@@ -1,0 +1,19 @@
+name: Coffers
+version: ${project.version}
+main: com.aegisguard.coffers.paper.CoffersPlugin
+api-version: '1.21'
+authors: [Aegis Guard]
+description: A modern economy plugin built for Coffers-aware integrations and legacy Vault bridges.
+softdepend: [Vault]
+commands:
+  coffers:
+    description: Core Coffers economy commands.
+    usage: /coffers <balance|pay|set>
+    permission: coffers.command.use
+permissions:
+  coffers.command.use:
+    default: true
+  coffers.command.balance.others:
+    default: op
+  coffers.command.set:
+    default: op

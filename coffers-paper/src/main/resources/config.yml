@@ -1,0 +1,11 @@
+currency:
+  singular: coin
+  plural: coins
+  symbol: $
+
+economy:
+  starting-balance: 100.00
+  fractional-digits: 2
+
+compatibility:
+  vault-bridge: auto
