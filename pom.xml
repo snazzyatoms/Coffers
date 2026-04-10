@@ -13,6 +13,7 @@
     <description>A modern economy platform with legacy support, Vault bridges, and richer integrations for Minecraft servers.</description>
 
     <modules>
+        <module>coffers-spi</module>
         <module>coffers-api</module>
         <module>coffers-paper</module>
         <module>coffers-legacy</module>

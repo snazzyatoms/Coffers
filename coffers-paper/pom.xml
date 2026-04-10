@@ -17,6 +17,11 @@
     <dependencies>
         <dependency>
             <groupId>com.aegisguard.coffers</groupId>
+            <artifactId>coffers-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.aegisguard.coffers</groupId>
             <artifactId>coffers-api</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -96,6 +101,9 @@
                                       overwrite="true"/>
                                 <copy file="${coffers.build.root}/coffers-api/Coffers-API.jar"
                                       tofile="${coffers.release.root}/Coffers-API.jar"
+                                      overwrite="true"/>
+                                <copy file="${coffers.build.root}/coffers-spi/Coffers-SPI.jar"
+                                      tofile="${coffers.release.root}/Coffers-SPI.jar"
                                       overwrite="true"/>
                             </target>
                         </configuration>

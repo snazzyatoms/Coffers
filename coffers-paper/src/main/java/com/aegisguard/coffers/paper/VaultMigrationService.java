@@ -12,7 +12,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
-final class VaultMigrationService {
+final class VaultMigrationService implements MigrationGateway {
 
     private final JavaPlugin plugin;
     private final CoffersEconomy economy;
@@ -22,7 +22,13 @@ final class VaultMigrationService {
         this.economy = economy;
     }
 
-    MigrationReport migrate(final String requestedProviderName) {
+    @Override
+    public boolean available() {
+        return true;
+    }
+
+    @Override
+    public MigrationReport migrate(final String requestedProviderName) {
         final RegisteredServiceProvider<Economy> registration = chooseProvider(requestedProviderName);
         if (registration == null) {
             throw new IllegalStateException("No external Vault economy provider was found to migrate from.");
@@ -66,7 +72,8 @@ final class VaultMigrationService {
         return new MigrationReport(providerName, importedAccounts, updatedAccounts, skippedAccounts);
     }
 
-    List<String> availableProviders() {
+    @Override
+    public List<String> availableProviders() {
         final List<String> providers = new ArrayList<>();
         for (final RegisteredServiceProvider<Economy> registration : providerRegistrations()) {
             providers.add(registration.getPlugin().getName() + ":" + registration.getProvider().getName());

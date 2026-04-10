@@ -224,6 +224,11 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (!migrationService().available()) {
+            sender.sendMessage("Vault migration is unavailable because Vault is not installed.");
+            return true;
+        }
+
         final String providerName = args.length >= 2 ? args[1] : null;
         try {
             final MigrationReport report = migrationService().migrate(providerName);
@@ -419,6 +424,9 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && "migratevault".equalsIgnoreCase(args[0])) {
+            if (!migrationService().available()) {
+                return List.of();
+            }
             return filter(migrationService().availableProviders(), args[1]);
         }
 
@@ -502,7 +510,7 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         return this.plugin.economy();
     }
 
-    private VaultMigrationService migrationService() {
+    private MigrationGateway migrationService() {
         return Objects.requireNonNull(this.plugin.migrationService(), "Coffers migration service is not available.");
     }
 

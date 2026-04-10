@@ -20,16 +20,12 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
 
     private final CoffersLegacyPlugin plugin;
     private final CoffersLegacyEconomyService economy;
-    private final CoffersLegacyMigrationService migrationService;
-
     CoffersLegacyCommand(
             final CoffersLegacyPlugin plugin,
-            final CoffersLegacyEconomyService economy,
-            final CoffersLegacyMigrationService migrationService
+            final CoffersLegacyEconomyService economy
     ) {
         this.plugin = plugin;
         this.economy = economy;
-        this.migrationService = migrationService;
     }
 
     public boolean onCommand(final CommandSender sender, final Command command, final String label, final String[] args) {
@@ -227,16 +223,21 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (!migrationService().available()) {
+            sender.sendMessage("Vault migration is unavailable because Vault is not installed.");
+            return true;
+        }
+
         String providerName = args.length >= 2 ? args[1] : null;
         try {
-            LegacyMigrationReport report = this.migrationService.migrate(providerName);
+            LegacyMigrationReport report = migrationService().migrate(providerName);
             sender.sendMessage("Migration completed from " + report.getProviderName() + ".");
             sender.sendMessage("Imported accounts: " + report.getImportedAccounts());
             sender.sendMessage("Updated accounts: " + report.getUpdatedAccounts());
             sender.sendMessage("Skipped accounts: " + report.getSkippedAccounts());
         } catch (IllegalStateException exception) {
             sender.sendMessage("Migration failed: " + exception.getMessage());
-            List<String> providers = this.migrationService.availableProviders();
+            List<String> providers = migrationService().availableProviders();
             if (!providers.isEmpty()) {
                 sender.sendMessage("Available providers: " + join(providers));
             }
@@ -302,7 +303,10 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && "migratevault".equalsIgnoreCase(args[0])) {
-            return filter(this.migrationService.availableProviders(), args[1]);
+            if (!migrationService().available()) {
+                return Collections.emptyList();
+            }
+            return filter(migrationService().availableProviders(), args[1]);
         }
 
         return Collections.emptyList();
@@ -402,6 +406,10 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
             builder.append(values.get(index));
         }
         return builder.toString();
+    }
+
+    private LegacyMigrationGateway migrationService() {
+        return this.plugin.migrationService();
     }
 
     private boolean isSelfTarget(final CommandSender sender, final OfflinePlayer target) {
