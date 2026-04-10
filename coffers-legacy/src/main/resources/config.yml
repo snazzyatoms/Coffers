@@ -1,5 +1,10 @@
+# Coffers Legacy runs as a standalone economy plugin on older server baselines.
+# Vault support is optional and intended for legacy plugin compatibility only.
 compatibility:
   vault-bridge: auto
+
+runtime:
+  schema-version: 1
 
 storage:
   type: yaml
@@ -23,9 +28,10 @@ currencies:
   default: coins
   definitions:
     coins:
+      enabled: true
       singular: coin
       plural: coins
-      symbol: $
+      symbol: "$"
       fractional-digits: 2
       starting-balance: 100.00
       format:
@@ -35,9 +41,10 @@ currencies:
         use-grouping: true
         show-trailing-zeros: true
     gems:
+      enabled: true
       singular: gem
       plural: gems
-      symbol: *
+      symbol: "*"
       fractional-digits: 0
       starting-balance: 0
       format:
