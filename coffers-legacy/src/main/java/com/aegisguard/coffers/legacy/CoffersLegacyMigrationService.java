@@ -11,7 +11,7 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
-final class CoffersLegacyMigrationService {
+final class CoffersLegacyMigrationService implements LegacyMigrationGateway {
 
     private final JavaPlugin plugin;
     private final CoffersLegacyEconomyService economy;
@@ -21,7 +21,13 @@ final class CoffersLegacyMigrationService {
         this.economy = economy;
     }
 
-    LegacyMigrationReport migrate(final String requestedProviderName) {
+    @Override
+    public boolean available() {
+        return true;
+    }
+
+    @Override
+    public LegacyMigrationReport migrate(final String requestedProviderName) {
         RegisteredServiceProvider<Economy> registration = chooseProvider(requestedProviderName);
         if (registration == null) {
             throw new IllegalStateException("No external Vault economy provider was found to migrate from.");
@@ -60,7 +66,8 @@ final class CoffersLegacyMigrationService {
         return new LegacyMigrationReport(providerName, importedAccounts, updatedAccounts, skippedAccounts);
     }
 
-    List<String> availableProviders() {
+    @Override
+    public List<String> availableProviders() {
         List<String> providers = new ArrayList<String>();
         List<RegisteredServiceProvider<Economy>> registrations = providerRegistrations();
         for (RegisteredServiceProvider<Economy> registration : registrations) {

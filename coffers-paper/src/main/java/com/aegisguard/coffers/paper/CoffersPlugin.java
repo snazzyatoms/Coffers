@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
-import net.milkbowl.vault.economy.Economy;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.ServicePriority;
@@ -18,8 +17,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class CoffersPlugin extends JavaPlugin {
 
     private CoffersEconomyService economy;
-    private Economy vaultEconomyProvider;
-    private VaultMigrationService migrationService;
+    private Object vaultEconomyProvider;
+    private MigrationGateway migrationService =
+            new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
 
     @Override
     public void onEnable() {
@@ -44,7 +44,6 @@ public final class CoffersPlugin extends JavaPlugin {
                     snapshot,
                     getLogger()
             );
-            this.migrationService = new VaultMigrationService(this, this.economy);
         } catch (final Exception exception) {
             getLogger().severe("Failed to start Coffers: " + exception.getMessage());
             exception.printStackTrace();
@@ -55,11 +54,12 @@ public final class CoffersPlugin extends JavaPlugin {
         getServer().getServicesManager().register(CoffersEconomy.class, this.economy, this, ServicePriority.Normal);
 
         final PluginCommand command = Objects.requireNonNull(getCommand("coffers"), "coffers command missing from plugin.yml");
-        final CoffersCommand executor = new CoffersCommand(this, this.economy, this.migrationService);
+        final CoffersCommand executor = new CoffersCommand(this, this.economy);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
         registerVaultCompatibility();
+        configureMigrationGateway();
 
         getLogger().info("Coffers is ready.");
     }
@@ -67,6 +67,8 @@ public final class CoffersPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         getServer().getServicesManager().unregisterAll(this);
+        this.vaultEconomyProvider = null;
+        this.migrationService = new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
         if (this.economy != null) {
             this.economy.close();
         }
@@ -76,7 +78,7 @@ public final class CoffersPlugin extends JavaPlugin {
         return this.economy;
     }
 
-    public VaultMigrationService migrationService() {
+    public MigrationGateway migrationService() {
         return this.migrationService;
     }
 
@@ -99,8 +101,26 @@ public final class CoffersPlugin extends JavaPlugin {
         }
 
         this.vaultEconomyProvider = new CoffersVaultEconomy(this, this.economy);
-        getServer().getServicesManager().register(Economy.class, this.vaultEconomyProvider, this, ServicePriority.High);
+        registerVaultEconomyService(this.vaultEconomyProvider);
         getLogger().info("Registered Coffers as a Vault economy provider.");
+    }
+
+    private void configureMigrationGateway() {
+        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+            this.migrationService = new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
+            return;
+        }
+        this.migrationService = new VaultMigrationService(this, this.economy);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void registerVaultEconomyService(final Object provider) {
+        try {
+            final Class economyClass = Class.forName("net.milkbowl.vault.economy.Economy");
+            getServer().getServicesManager().register(economyClass, provider, this, ServicePriority.High);
+        } catch (final ClassNotFoundException exception) {
+            throw new IllegalStateException("Vault classes were not available for Coffers registration.", exception);
+        }
     }
 
     private List<CurrencyDefinition> loadCurrencies() {

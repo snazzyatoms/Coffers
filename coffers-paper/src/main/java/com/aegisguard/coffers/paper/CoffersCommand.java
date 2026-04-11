@@ -23,12 +23,10 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
 
     private final CoffersPlugin plugin;
     private final CoffersEconomy economy;
-    private final VaultMigrationService migrationService;
 
-    CoffersCommand(final CoffersPlugin plugin, final CoffersEconomy economy, final VaultMigrationService migrationService) {
+    CoffersCommand(final CoffersPlugin plugin, final CoffersEconomy economy) {
         this.plugin = plugin;
         this.economy = economy;
-        this.migrationService = migrationService;
     }
 
     @Override
@@ -212,16 +210,21 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (!migrationService().available()) {
+            sender.sendMessage("Vault migration is unavailable because Vault is not installed.");
+            return true;
+        }
+
         final String providerName = args.length >= 2 ? args[1] : null;
         try {
-            final MigrationReport report = this.migrationService.migrate(providerName);
+            final MigrationReport report = migrationService().migrate(providerName);
             sender.sendMessage("Migration completed from " + report.providerName() + ".");
             sender.sendMessage("Imported accounts: " + report.importedAccounts());
             sender.sendMessage("Updated accounts: " + report.updatedAccounts());
             sender.sendMessage("Skipped accounts: " + report.skippedAccounts());
         } catch (final IllegalStateException exception) {
             sender.sendMessage("Migration failed: " + exception.getMessage());
-            final List<String> providers = this.migrationService.availableProviders();
+            final List<String> providers = migrationService().availableProviders();
             if (!providers.isEmpty()) {
                 sender.sendMessage("Available providers: " + String.join(", ", providers));
             }
@@ -288,7 +291,10 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && "migratevault".equalsIgnoreCase(args[0])) {
-            return filter(this.migrationService.availableProviders(), args[1]);
+            if (!migrationService().available()) {
+                return List.of();
+            }
+            return filter(migrationService().availableProviders(), args[1]);
         }
 
         return List.of();
@@ -345,5 +351,9 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
             builder.append(" | by ").append(entry.actor().actorName());
         }
         return builder.toString();
+    }
+
+    private MigrationGateway migrationService() {
+        return this.plugin.migrationService();
     }
 }

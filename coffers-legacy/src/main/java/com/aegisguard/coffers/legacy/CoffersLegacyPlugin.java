@@ -1,5 +1,6 @@
 package com.aegisguard.coffers.legacy;
 
+import com.aegisguard.coffers.spi.NativeCoffersEconomy;
 import java.io.File;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -8,7 +9,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
-import net.milkbowl.vault.economy.Economy;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.ServicePriority;
@@ -17,8 +17,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class CoffersLegacyPlugin extends JavaPlugin {
 
     private CoffersLegacyEconomyService economy;
-    private Economy vaultEconomyProvider;
-    private CoffersLegacyMigrationService migrationService;
+    private Object vaultEconomyProvider;
+    private LegacyMigrationGateway migrationService =
+            new UnavailableLegacyMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
 
     public void onEnable() {
         saveDefaultConfig();
@@ -33,7 +34,6 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
             LegacyStorageSnapshot snapshot = storage.load();
 
             this.economy = new CoffersLegacyEconomyService(currencies, defaultCurrencyId, storage, historyLimit, snapshot, getLogger());
-            this.migrationService = new CoffersLegacyMigrationService(this, this.economy);
         } catch (Exception exception) {
             getLogger().severe("Failed to start Coffers Legacy: " + exception.getMessage());
             exception.printStackTrace();
@@ -42,16 +42,21 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         }
 
         PluginCommand command = Objects.requireNonNull(getCommand("cofferslegacy"), "cofferslegacy command missing from plugin.yml");
-        CoffersLegacyCommand executor = new CoffersLegacyCommand(this, this.economy, this.migrationService);
+        getServer().getServicesManager().register(NativeCoffersEconomy.class, new NativeLegacyCoffersEconomyBridge(this.economy), this, ServicePriority.High);
+
+        CoffersLegacyCommand executor = new CoffersLegacyCommand(this, this.economy);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
         registerVaultCompatibility();
+        configureMigrationGateway();
         getLogger().info("Coffers Legacy is ready.");
     }
 
     public void onDisable() {
         getServer().getServicesManager().unregisterAll(this);
+        this.vaultEconomyProvider = null;
+        this.migrationService = new UnavailableLegacyMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
         if (this.economy != null) {
             this.economy.close();
         }
@@ -76,8 +81,26 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         }
 
         this.vaultEconomyProvider = new CoffersLegacyVaultEconomy(this, this.economy);
-        getServer().getServicesManager().register(Economy.class, this.vaultEconomyProvider, this, ServicePriority.High);
+        registerVaultEconomyService(this.vaultEconomyProvider);
         getLogger().info("Registered Coffers Legacy as a Vault economy provider.");
+    }
+
+    private void configureMigrationGateway() {
+        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+            this.migrationService = new UnavailableLegacyMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
+            return;
+        }
+        this.migrationService = new CoffersLegacyMigrationService(this, this.economy);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void registerVaultEconomyService(final Object provider) {
+        try {
+            Class economyClass = Class.forName("net.milkbowl.vault.economy.Economy");
+            getServer().getServicesManager().register(economyClass, provider, this, ServicePriority.High);
+        } catch (ClassNotFoundException exception) {
+            throw new IllegalStateException("Vault classes were not available for Coffers Legacy registration.", exception);
+        }
     }
 
     private List<LegacyCurrencyDefinition> loadCurrencies() {
@@ -162,5 +185,9 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
 
     Collection<LegacyCurrencyDefinition> currencies() {
         return this.economy.currencies();
+    }
+
+    LegacyMigrationGateway migrationService() {
+        return this.migrationService;
     }
 }

@@ -25,7 +25,7 @@ currencies:
     coins:
       singular: coin
       plural: coins
-      symbol: $
+      symbol: "$"
       fractional-digits: 2
       starting-balance: 100.00
       format:
@@ -37,7 +37,7 @@ currencies:
     gems:
       singular: gem
       plural: gems
-      symbol: ◆
+      symbol: "◆"
       fractional-digits: 0
       starting-balance: 0
       format:
