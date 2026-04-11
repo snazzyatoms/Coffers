@@ -24,11 +24,16 @@ Server owners should choose the plugin line that matches their server platform a
 Use:
 
 - `Coffers.jar` for the modern line
-- `Coffers-Legacy.jar` for older legacy-oriented server setups
+- `Coffers-Legacy.jar` for older legacy-oriented server setups running on Java 16-era environments
 
 Both plugin lines can run without Vault installed, and both are designed to operate as standalone economy plugins by default.
 
 If a server is still using older plugins that expect Vault, Coffers can continue to work alongside Vault and register itself as a Vault economy provider when Vault is present. This makes Coffers suitable both for fully standalone setups and for gradual transitions away from Vault-based economies.
+
+For clarity:
+
+- use `Coffers-Legacy.jar` for older Bukkit, CraftBukkit, Spigot, and Paper-style servers that are being maintained on Java 16 legacy environments
+- use `Coffers.jar` for modern servers running Java 17 or newer
 
 Vault compatibility is built into the main plugin and can be set to:
 
@@ -93,13 +98,17 @@ Coffers now ships in two server-owner lines:
 - `Coffers.jar`
   - intended for the modern server line
   - built for the current Paper-focused codebase
+  - intended for Java 17 and newer server environments
   - can run entirely on its own without Vault
   - can also work with Vault when older plugins still depend on Vault APIs
 
 - `Coffers-Legacy.jar`
   - intended for older Bukkit, Spigot, Paper, and similar legacy-oriented server setups
+  - intended for Java 16 legacy server environments
   - compiled against an older server/API baseline so legacy servers have their own supported line
   - can also run without Vault, while still supporting Vault compatibility when needed
+
+If your server is already running Java 17 or newer, the recommended jar is `Coffers.jar`.
 
 This split allows Coffers to support modern and legacy environments without pretending one jar can safely cover every server generation at once.
 
@@ -168,6 +177,8 @@ This gives other plugins a better foundation than relying only on legacy Vault-s
 
 In short:
 
+- use `Coffers-Legacy.jar` for Java 16 legacy server setups
+- use `Coffers.jar` for Java 17 and newer modern server setups
 - use Coffers by itself if your plugin stack is ready to move beyond Vault
 - keep Vault installed if older plugins still require it
 - use Coffers migration helpers to transition balances from an older Vault-backed economy into Coffers
