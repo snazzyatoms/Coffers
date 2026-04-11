@@ -169,11 +169,13 @@ The API jar exposes richer integration types than the original baseline prototyp
 
 This gives other plugins a better foundation than relying only on legacy Vault-style balance calls.
 
+The developer API is also included directly inside this repository in the `coffers-api` module. Developers who prefer browsing the full source can inspect the API from the repo itself, while developers who want a packaged dependency can use `release/Coffers-API.jar`.
+
 ## Downloads
 
 - Server owners: use `release/Coffers.jar`
 - Older legacy servers: use `release/Coffers-Legacy.jar`
-- Developers: optional `release/Coffers-API.jar`
+- Developers: optional `release/Coffers-API.jar`, or use the `coffers-api` module directly from the repository source
 
 In short:
 
