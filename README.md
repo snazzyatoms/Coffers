@@ -4,6 +4,8 @@
 
 Coffers is a fresh, from-scratch economy platform for modern Minecraft servers.
 
+Current focus: `Coffers 0.2.1.0` keeps Coffers standalone-first, with Vault available only as an optional compatibility layer.
+
 The direction is simple:
 
 - Keep the good part of Vault: a stable abstraction other plugins can depend on.
@@ -21,6 +23,10 @@ Use:
 
 - `Coffers.jar` for the modern line
 - `Coffers-Legacy.jar` for older legacy-oriented server setups
+
+Both plugin lines can run without Vault installed.
+
+If another plugin still expects Vault, Coffers can switch into Vault compatibility mode and register itself as a Vault economy provider when Vault is present.
 
 Vault compatibility is built into the main plugin and can be set to:
 
@@ -50,7 +56,7 @@ The legacy line also ships with YAML, SQLite, and MySQL options through its own 
 
 ## Early Goals
 
-- Provide a clean economy service for current and future plugins.
+- Provide a clean economy service for Aegis Guard and future plugins.
 - Keep Vault support as a built-in bridge, not the center of the design.
 - Start with a small, understandable baseline before adding persistence and advanced features.
 - Make server-owner setup simple while still giving developers a real API to build against.
@@ -64,7 +70,8 @@ Right now Coffers includes:
 - persistent YAML, SQLite, and MySQL storage options
 - configurable currencies with symbols, starting balances, fractional digits, and formatting rules
 - transaction history with audit metadata
-- built-in Vault compatibility
+- standalone-first economy loading with no Vault requirement
+- built-in Vault compatibility when older plugins still need it
 - migration helpers for existing Vault-based economy setups
 - a richer API for plugin-to-plugin integrations
 - starter commands:
@@ -84,10 +91,12 @@ Coffers now ships in two server-owner lines:
 - `Coffers.jar`
   - intended for the modern line
   - built for the current Paper-focused codebase
+  - can run by itself without Vault
 
 - `Coffers-Legacy.jar`
   - intended for older Spigot/Paper/Purpur-style server setups
   - compiled against an older server/API baseline so legacy servers have their own supported line
+  - can also run without Vault, while still supporting Vault compatibility when needed
 
 This approach is cleaner than pretending one jar can safely support every Minecraft server generation at once.
 
@@ -125,6 +134,8 @@ The default configuration ships with `coins` and `gems` as examples.
 ## Migration Helpers
 
 Coffers can import balances from another Vault-backed economy provider already present on the server.
+
+Vault is only needed for that migration or for older plugins that still depend on Vault. If your plugins hook into Coffers directly, Vault does not need to be installed at all.
 
 Use:
 
