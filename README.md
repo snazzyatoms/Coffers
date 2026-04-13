@@ -2,198 +2,175 @@
 
 # Coffers
 
-Coffers is a fresh, from-scratch economy platform for modern Minecraft servers.
+Coffers is a standalone-first economy platform for Minecraft servers.
 
-Starting with `v0.2`, the project direction is intentionally standalone-first:
+It is built for server owners who want a full economy plugin they can run on its own, while still keeping Vault available as an optional compatibility layer for older plugins that may still require it.
 
-- Coffers is the primary economy platform.
-- Coffers API is the preferred integration target for new plugins.
-- Vault compatibility exists only to help older plugin stacks transition cleanly.
-- Richer features should live in Coffers, not be constrained by the older Vault model.
+For plugin developers, Coffers also provides native integration paths that are richer and more modern than the older balance-only model many servers are used to.
 
-## Standalone-First Direction
+## What Coffers Offers
 
-Coffers is not being built as "Vault with a new name."
+- standalone economy support with no Vault requirement
+- optional Vault compatibility for older plugin stacks
+- YAML, SQLite, and MySQL storage backends
+- configurable currencies and formatting rules
+- transaction history with audit-friendly metadata
+- migration helpers for existing Vault-backed setups
+- direct API and SPI modules for plugin developers
+- separate modern and legacy plugin lines
 
-The goal for the project is:
+## Which Jar Is For What?
 
-- give server owners a full standalone economy plugin without requiring Vault
-- give developers a direct API that is richer than Vault's older abstraction
-- keep a built-in Vault bridge only for legacy compatibility
-<<<<<<< Updated upstream
-- make it easier for future plugins to target Coffers directly
-=======
-- make it easier for future plugins, including Aegis Guard, to target Coffers directly
->>>>>>> Stashed changes
-
-In practice, that means:
-
-- Vault is optional
-- Coffers storage, commands, currencies, and ledger history are native features
-- Coffers API should be preferred over Vault for new integrations
-- Vault compatibility should be treated as a migration layer, not the center of the architecture
-
-## What Server Owners Install
-
-Server owners should choose the plugin line that matches their server:
+### For server owners
 
 - `release/Coffers.jar`
+  - the modern plugin line
+  - intended for modern Paper-based server environments
+
 - `release/Coffers-Legacy.jar`
+  - the legacy plugin line
+  - intended for older Bukkit-family server environments
 
-Use:
+### For plugin developers
 
-- `Coffers.jar` for the modern line
-- `Coffers-Legacy.jar` for older legacy-oriented server setups
+- `release/Coffers-API.jar`
+  - the main developer API
+  - intended for richer direct integrations with the modern Coffers line
 
-Vault compatibility is built into the main plugin and can be set to:
+- `release/Coffers-SPI.jar`
+  - the service-provider interface module
+  - intended for shared native integration contracts and service discovery style hooks
 
-- `auto`: register with Vault only when Vault is installed
-- `enabled`: force Coffers to expose a Vault economy provider when Vault is present
-- `disabled`: never register the Vault bridge
+In short:
+
+- server owners install `Coffers.jar` or `Coffers-Legacy.jar`
+- developers can additionally use `Coffers-API.jar` or `Coffers-SPI.jar` depending on their integration needs
+
+## How Vault Fits In
+
+Vault is optional in Coffers.
+
+If Vault is installed and enabled in config, Coffers can register itself as a Vault economy provider so that older plugins can continue working.
 
 If Vault is not installed, Coffers still runs normally as a standalone economy plugin.
 
+This makes Coffers useful for both kinds of server setups:
+
+- servers that want to keep supporting older Vault-based plugins
+- servers that want to move toward direct Coffers integrations over time
+
+Vault bridge behavior can be set to:
+
+- `auto`
+- `enabled`
+- `disabled`
+
 ## Storage Backends
 
-The modern Coffers line supports multiple persistence modes:
+Coffers supports three storage modes:
 
-- `yaml`: simple local file storage for smaller servers that do not want a database
-- `sqlite`: file-based SQL storage for a single server that still wants structured persistence
-- `mysql`: shared database storage for larger or networked setups
+- `yaml`
+  - simple file storage for lightweight setups
+- `sqlite`
+  - local database storage for a single server
+- `mysql`
+  - shared database storage for larger or networked environments
 
-Storage mode is configured in `coffers-paper/src/main/resources/config.yml`.
+Both the modern and legacy lines include these storage options.
 
-The legacy line also ships with YAML, SQLite, and MySQL options through its own legacy configuration.
+## Modern And Legacy Plugin Lines
 
-## Project Layout
+Coffers ships in two server-owner plugin lines so each environment has a more appropriate baseline.
 
-- `coffers-paper`: the main Paper plugin, including commands, storage wiring, Coffers-native features, and optional Vault compatibility
-- `coffers-api`: the shared developer API for currencies, ledger entries, transaction results, events, and richer integrations
-- `coffers-legacy`: the legacy-compatible plugin line for older server baselines
-- storage backends: YAML for simple setups, SQLite for single-server persistence, and MySQL for shared database deployments
-- built-in legacy bridge: Coffers can register as a Vault economy provider without needing a separate bridge plugin
-
-## Early Goals
-
-- Provide a clean economy service for Aegis Guard and future plugins.
-- Keep Vault support as a built-in bridge, not the center of the design.
-- Start with a small, understandable baseline before adding persistence and advanced features.
-- Make server-owner setup simple while still giving developers a real API to build against.
-
-## Current State
-
-Right now Coffers includes:
-
-- a Paper plugin bootstrap
-- a separate legacy plugin line for older server baselines
-- persistent YAML, SQLite, and MySQL storage options
-- configurable currencies with symbols, starting balances, fractional digits, and formatting rules
-- transaction history with audit metadata
-- built-in Vault compatibility bridge for older plugin ecosystems
-- migration helpers for existing Vault-based economy setups
-- a richer API for plugin-to-plugin integrations
-- optional PlaceholderAPI support and newer admin tooling in the modern line
-- starter commands:
-  - `/coffers balance [player]`
-  - `/coffers pay <player> <amount>`
-  - `/coffers set <player> <amount>`
-  - `/coffers history [player] [limit]`
-  - `/coffers currencies`
-  - `/coffers migratevault [provider]`
-
-Current compatibility settings live in `coffers-paper/src/main/resources/config.yml`.
-
-## Modern And Legacy Lines
-
-Coffers now ships in two server-owner lines:
+### Modern line
 
 - `Coffers.jar`
-  - intended for the modern line
-  - built for the current Paper-focused codebase
+- focused on the modern codebase
+- includes the current admin tooling and PlaceholderAPI support
+
+### Legacy line
 
 - `Coffers-Legacy.jar`
-  - intended for older Spigot/Paper/Purpur-style server setups
-  - compiled against an older server/API baseline so legacy servers have their own supported line
+- intended for older Bukkit, CraftBukkit, Spigot, and similar legacy-oriented setups
+- keeps the same overall economy direction while targeting older server environments
 
-This approach is cleaner than pretending one jar can safely support every Minecraft server generation at once.
+## Core Features
 
-## Transaction History And Audit Metadata
+Coffers currently includes:
 
-Every balance-changing operation recorded by Coffers can include:
+- balance, pay, set, history, top, and currency commands
+- named backups, exports, imports, and live restore support
+- pay-toggle preferences
+- bank support
+- rollback tools for transaction correction
+- startup diagnostics and migration reporting
+- configurable chat styling
+- configurable multi-currency support
+- transaction audit history
 
-- transaction kind
-- currency
-- amount
-- resulting balance
-- reason
-- actor type
-- actor identity or source
-- timestamp
-- transfer reference identifiers for related entries
+## Developer Integrations
 
-This gives plugin authors and server admins a stronger base for auditing than a simple balance-only economy model.
+For plugin authors, Coffers offers two main integration layers.
 
-## Currency And Formatting Support
+### API
 
-Coffers supports multiple currencies with per-currency rules, including:
+The API module includes rich economy types such as:
 
-- singular and plural display names
-- symbols
-- starting balances
-- fractional digits
-- grouping separators
-- symbol placement
-- spacing rules
-- trailing zero display rules
-
-The default configuration ships with `coins` and `gems` as examples.
-
-## Migration Helpers
-
-Coffers can import balances from another Vault-backed economy provider already present on the server.
-
-Use:
-
-- `/coffers migratevault`
-- `/coffers migratevault <provider>`
-
-This is intended to make adoption easier for servers currently running a different economy plugin behind Vault.
-
-## Developer API
-
-The API jar exposes richer integration types than the original baseline prototype, including:
-
-- currency definitions and format rules
+- currency definitions
+- currency formatting rules
 - account snapshots
 - transaction results
 - ledger entries
-- transaction actor metadata
 - transaction kinds
+- actor and audit metadata
 
-For new plugins, this API is the preferred target instead of Vault.
+### SPI
 
-This gives other plugins a better foundation than relying only on legacy Vault-style balance calls.
+The SPI module is intended for native service-style integrations where a plugin wants to hook into Coffers through a shared contract without relying on Vault.
+
+This helps plugins target Coffers directly while still allowing server owners to decide whether Vault should be present for compatibility with older plugins.
+
+## Migration Support
+
+Coffers can import balances from another Vault-backed economy provider already present on the server.
+
+This helps server owners move to Coffers more gradually rather than rebuilding balances by hand.
+
+Common commands include:
+
+- `/coffers migratevault`
+- `/coffers migratevault <provider>`
+- `/cofferslegacy migratevault <provider>`
 
 ## Documentation
 
-- Wiki home: `wiki/Home.md`
-- Standalone-first direction: `wiki/Standalone-First.md`
-- Vault bridge behavior: `wiki/Vault-Compatibility.md`
-- Developer integrations: `wiki/Developer-API.md`
+The project wiki is included in this repository:
+
+- `wiki/Home.md`
+- `wiki/Installation.md`
+- `wiki/Configuration.md`
+- `wiki/Storage-Backends.md`
+- `wiki/Vault-Compatibility.md`
+- `wiki/Developer-API.md`
+- `wiki/Developer-Examples.md`
+
+## Project Layout
+
+- `coffers-paper`
+  - modern plugin implementation
+- `coffers-legacy`
+  - legacy plugin implementation
+- `coffers-api`
+  - developer-facing API module
+- `coffers-spi`
+  - shared service-provider interface module
 
 ## Downloads
 
-- Server owners: use `release/Coffers.jar`
-- Older legacy servers: use `release/Coffers-Legacy.jar`
-- Developers: optional `release/Coffers-API.jar`
-
-## What Informed the Design
-
-These ideas were borrowed conceptually, not by copying code:
-
-- Vault: a central abstraction that many plugins know how to consume
-- Treasury and other modern economy APIs: better separation between API and implementation concerns
-- newer Vault refresh efforts: focusing on modern servers without dragging every old integration into the core design
+- modern servers: `release/Coffers.jar`
+- legacy servers: `release/Coffers-Legacy.jar`
+- developers: `release/Coffers-API.jar`
+- native integration contracts: `release/Coffers-SPI.jar`
 
 ## License
 
