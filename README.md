@@ -20,7 +20,11 @@ The goal for the project is:
 - give server owners a full standalone economy plugin without requiring Vault
 - give developers a direct API that is richer than Vault's older abstraction
 - keep a built-in Vault bridge only for legacy compatibility
+<<<<<<< Updated upstream
 - make it easier for future plugins to target Coffers directly
+=======
+- make it easier for future plugins, including Aegis Guard, to target Coffers directly
+>>>>>>> Stashed changes
 
 In practice, that means:
 

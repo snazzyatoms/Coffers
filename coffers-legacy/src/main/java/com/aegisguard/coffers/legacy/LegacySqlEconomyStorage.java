@@ -30,11 +30,20 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
             connection = openConnection();
             statement = connection.createStatement();
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_accounts (account_uuid VARCHAR(36) NOT NULL, currency_id VARCHAR(64) NOT NULL, balance_value VARCHAR(64) NOT NULL, PRIMARY KEY (account_uuid, currency_id))");
+<<<<<<< Updated upstream
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_history (entry_id VARCHAR(36) NOT NULL, account_uuid VARCHAR(36) NOT NULL, reference_id VARCHAR(36) NOT NULL, counterparty_uuid VARCHAR(36) NULL, currency_id VARCHAR(64) NOT NULL, transaction_kind VARCHAR(32) NOT NULL, amount_value VARCHAR(64) NOT NULL, resulting_balance VARCHAR(64) NOT NULL, actor_type VARCHAR(32) NOT NULL, actor_id VARCHAR(36) NULL, actor_name VARCHAR(128) NULL, actor_source VARCHAR(128) NULL, reason_value VARCHAR(255) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (entry_id))");
+=======
+            statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_history (entry_id VARCHAR(36) NOT NULL, account_uuid VARCHAR(36) NOT NULL, reference_id VARCHAR(36) NOT NULL, counterparty_uuid VARCHAR(36) NULL, currency_id VARCHAR(64) NOT NULL, transaction_kind VARCHAR(32) NOT NULL, amount_value VARCHAR(64) NOT NULL, previous_balance VARCHAR(64) NULL, resulting_balance VARCHAR(64) NOT NULL, actor_type VARCHAR(32) NOT NULL, actor_id VARCHAR(36) NULL, actor_name VARCHAR(128) NULL, actor_source VARCHAR(128) NULL, reason_value VARCHAR(255) NULL, reversal_of_reference_id VARCHAR(36) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (entry_id))");
+>>>>>>> Stashed changes
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_metadata (metadata_key VARCHAR(64) NOT NULL, metadata_value VARCHAR(255) NOT NULL, PRIMARY KEY (metadata_key))");
             statement.executeUpdate("DELETE FROM coffers_legacy_metadata WHERE metadata_key IN ('storage_engine', 'schema_version')");
             statement.executeUpdate("INSERT INTO coffers_legacy_metadata (metadata_key, metadata_value) VALUES ('storage_engine', 'sql')");
             statement.executeUpdate("INSERT INTO coffers_legacy_metadata (metadata_key, metadata_value) VALUES ('schema_version', '1')");
+<<<<<<< Updated upstream
+=======
+            ensureColumn(statement, "coffers_legacy_history", "previous_balance", "VARCHAR(64) NULL");
+            ensureColumn(statement, "coffers_legacy_history", "reversal_of_reference_id", "VARCHAR(36) NULL");
+>>>>>>> Stashed changes
         } finally {
             closeQuietly(statement);
             closeQuietly(connection);
@@ -75,6 +84,7 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                         historyResult.getString("currency_id"),
                         LegacyTransactionKind.valueOf(historyResult.getString("transaction_kind")),
                         new BigDecimal(historyResult.getString("amount_value")),
+                        readPreviousBalance(historyResult),
                         new BigDecimal(historyResult.getString("resulting_balance")),
                         actorType == null
                                 ? LegacyTransactionActor.system("sql-storage")
@@ -85,6 +95,7 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                                         historyResult.getString("actor_source")
                                 ),
                         historyResult.getString("reason_value"),
+                        historyResult.getString("reversal_of_reference_id") == null ? null : UUID.fromString(historyResult.getString("reversal_of_reference_id")),
                         historyResult.getLong("created_at")
                 );
                 List<LegacyLedgerEntry> entries = history.get(entry.getAccountId());
@@ -139,7 +150,7 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
             delete.setString(1, accountId.toString());
             delete.executeUpdate();
 
-            insert = connection.prepareStatement("INSERT INTO coffers_legacy_history (entry_id, account_uuid, reference_id, counterparty_uuid, currency_id, transaction_kind, amount_value, resulting_balance, actor_type, actor_id, actor_name, actor_source, reason_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            insert = connection.prepareStatement("INSERT INTO coffers_legacy_history (entry_id, account_uuid, reference_id, counterparty_uuid, currency_id, transaction_kind, amount_value, previous_balance, resulting_balance, actor_type, actor_id, actor_name, actor_source, reason_value, reversal_of_reference_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             for (LegacyLedgerEntry entry : entries) {
                 LegacyTransactionActor actor = entry.getActor() == null ? LegacyTransactionActor.system("sql-storage") : entry.getActor();
                 insert.setString(1, entry.getEntryId().toString());
@@ -149,6 +160,7 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                 insert.setString(5, entry.getCurrencyId());
                 insert.setString(6, entry.getKind().name());
                 insert.setString(7, entry.getAmount().toPlainString());
+<<<<<<< Updated upstream
                 insert.setString(8, entry.getResultingBalance().toPlainString());
                 insert.setString(9, actor.getType().name());
                 insert.setString(10, actor.getActorId() == null ? null : actor.getActorId().toString());
@@ -156,6 +168,17 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                 insert.setString(12, actor.getSource());
                 insert.setString(13, entry.getReason());
                 insert.setLong(14, entry.getCreatedAtEpochMilli());
+=======
+                insert.setString(8, entry.getPreviousBalance().toPlainString());
+                insert.setString(9, entry.getResultingBalance().toPlainString());
+                insert.setString(10, actor.getType().name());
+                insert.setString(11, actor.getActorId() == null ? null : actor.getActorId().toString());
+                insert.setString(12, actor.getActorName());
+                insert.setString(13, actor.getSource());
+                insert.setString(14, entry.getReason());
+                insert.setString(15, entry.getReversalOfReferenceId() == null ? null : entry.getReversalOfReferenceId().toString());
+                insert.setLong(16, entry.getCreatedAtEpochMilli());
+>>>>>>> Stashed changes
                 insert.addBatch();
             }
             insert.executeBatch();
@@ -182,6 +205,35 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                 closeable.close();
             } catch (final Exception ignored) {
             }
+        }
+    }
+
+    private void ensureColumn(final Statement statement, final String table, final String column, final String definition) {
+        try {
+            statement.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        } catch (final Exception ignored) {
+        }
+    }
+
+    private BigDecimal readPreviousBalance(final ResultSet resultSet) throws Exception {
+        final String previousValue = resultSet.getString("previous_balance");
+        if (previousValue != null) {
+            return new BigDecimal(previousValue);
+        }
+
+        BigDecimal amount = new BigDecimal(resultSet.getString("amount_value"));
+        BigDecimal resultingBalance = new BigDecimal(resultSet.getString("resulting_balance"));
+        LegacyTransactionKind kind = LegacyTransactionKind.valueOf(resultSet.getString("transaction_kind"));
+        switch (kind) {
+            case DEPOSIT:
+            case TRANSFER_IN:
+                return resultingBalance.subtract(amount);
+            case WITHDRAWAL:
+            case TRANSFER_OUT:
+                return resultingBalance.add(amount);
+            case SET:
+            default:
+                return resultingBalance;
         }
     }
 }

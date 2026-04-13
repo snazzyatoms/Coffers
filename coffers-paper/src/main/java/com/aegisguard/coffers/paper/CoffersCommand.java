@@ -1,5 +1,6 @@
 package com.aegisguard.coffers.paper;
 
+<<<<<<< Updated upstream
 import com.aegisguard.coffers.api.AccountSnapshot;
 import com.aegisguard.coffers.api.CoffersEconomy;
 import com.aegisguard.coffers.api.LedgerEntry;
@@ -527,3 +528,6 @@ final class CoffersCommand implements CommandExecutor, TabCompleter {
         return sender instanceof Player player && player.getUniqueId().equals(target.getUniqueId());
     }
 }
+=======
+// Legacy stub left intentionally blank after command logic moved to CoffersCommandHandler.
+>>>>>>> Stashed changes

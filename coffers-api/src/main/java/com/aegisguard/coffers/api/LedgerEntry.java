@@ -11,9 +11,11 @@ public record LedgerEntry(
         String currencyId,
         TransactionKind kind,
         BigDecimal amount,
+        BigDecimal previousBalance,
         BigDecimal resultingBalance,
         TransactionActor actor,
         String reason,
+        UUID reversalOfReferenceId,
         long createdAtEpochMilli
 ) {
 }

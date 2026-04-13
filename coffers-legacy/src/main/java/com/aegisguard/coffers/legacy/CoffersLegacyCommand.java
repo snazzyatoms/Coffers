@@ -1,5 +1,6 @@
 package com.aegisguard.coffers.legacy;
 
+<<<<<<< Updated upstream
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -416,3 +417,6 @@ final class CoffersLegacyCommand implements CommandExecutor, TabCompleter {
         return sender instanceof Player && ((Player) sender).getUniqueId().equals(target.getUniqueId());
     }
 }
+=======
+// Legacy stub left intentionally blank after command logic moved to CoffersLegacyCommandHandler.
+>>>>>>> Stashed changes

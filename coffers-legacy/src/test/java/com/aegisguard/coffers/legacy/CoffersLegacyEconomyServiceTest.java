@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -103,6 +104,35 @@ class CoffersLegacyEconomyServiceTest {
         assertEquals("System", service.recentTransactions(accountId, 10).get(0).getActor().getActorName());
     }
 
+<<<<<<< Updated upstream
+=======
+    @Test
+    void replaceSnapshotRemovesPersistedAccountsThatAreNoLongerPresent() {
+        RecordingLegacyStorage storage = new RecordingLegacyStorage();
+        UUID staleAccountId = UUID.randomUUID();
+        UUID freshAccountId = UUID.randomUUID();
+
+        CoffersLegacyEconomyService service = new CoffersLegacyEconomyService(
+                Arrays.asList(currency("coins")),
+                "coins",
+                storage,
+                10,
+                new LegacyStorageSnapshot(Collections.<UUID, Map<String, BigDecimal>>emptyMap(), Collections.<UUID, List<LegacyLedgerEntry>>emptyMap()),
+                Logger.getAnonymousLogger()
+        );
+
+        service.deposit(staleAccountId, "coins", new BigDecimal("7.50"), LegacyTransactionActor.system("test"), "Seed stale");
+        service.replaceSnapshot(new LegacyStorageSnapshot(
+                Collections.<UUID, Map<String, BigDecimal>>singletonMap(freshAccountId, Collections.<String, BigDecimal>singletonMap("coins", new BigDecimal("3.25"))),
+                Collections.<UUID, List<LegacyLedgerEntry>>emptyMap()
+        ));
+
+        assertEquals(new BigDecimal("3.25"), service.getBalance(freshAccountId, "coins"));
+        assertEquals(Collections.<String, BigDecimal>emptyMap(), storage.savedAccounts.get(staleAccountId));
+        assertEquals(Collections.<LegacyLedgerEntry>emptyList(), storage.savedHistory.get(staleAccountId));
+    }
+
+>>>>>>> Stashed changes
     private static LegacyCurrencyDefinition currency(final String id) {
         return new LegacyCurrencyDefinition(
                 id,
@@ -128,6 +158,30 @@ class CoffersLegacyEconomyServiceTest {
         }
 
         public void saveHistory(final UUID accountId, final List<LegacyLedgerEntry> entries) {
+        }
+
+        public void close() {
+        }
+    }
+
+    private static final class RecordingLegacyStorage implements LegacyEconomyStorage {
+
+        private final Map<UUID, Map<String, BigDecimal>> savedAccounts = new LinkedHashMap<UUID, Map<String, BigDecimal>>();
+        private final Map<UUID, List<LegacyLedgerEntry>> savedHistory = new LinkedHashMap<UUID, List<LegacyLedgerEntry>>();
+
+        public void initialize() {
+        }
+
+        public LegacyStorageSnapshot load() {
+            return new LegacyStorageSnapshot(Collections.<UUID, Map<String, BigDecimal>>emptyMap(), Collections.<UUID, List<LegacyLedgerEntry>>emptyMap());
+        }
+
+        public void saveAccount(final UUID accountId, final Map<String, BigDecimal> balances) {
+            this.savedAccounts.put(accountId, new LinkedHashMap<String, BigDecimal>(balances));
+        }
+
+        public void saveHistory(final UUID accountId, final List<LegacyLedgerEntry> entries) {
+            this.savedHistory.put(accountId, entries);
         }
 
         public void close() {

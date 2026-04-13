@@ -8,16 +8,61 @@ softdepend: [Vault, PlaceholderAPI]
 commands:
   coffers:
     description: Core Coffers economy commands.
+<<<<<<< Updated upstream
     usage: /coffers <balance|pay|set|history|top|currencies|migratevault|reload|backup|export|import>
+=======
+    usage: /coffers <balance|pay|paytoggle|set|history|rollback|bank|status|top|currencies|migratevault|reload|backup [name]|export [name]|import <name>|restore [backup-name|latest]>
+>>>>>>> Stashed changes
     permission: coffers.command.use
+  baltop:
+    description: View the top Coffers balances.
+    usage: /baltop [currency] [limit]
+    permission: coffers.command.use
+  paytoggle:
+    description: Toggle whether other players can send you Coffers payments.
+    usage: /paytoggle [on|off]
+    permission: coffers.command.paytoggle
 permissions:
   coffers.command.use:
     default: true
+  coffers.command.balance:
+    default: true
+  coffers.command.pay:
+    default: true
+  coffers.command.history:
+    default: true
+  coffers.command.top:
+    default: true
+  coffers.command.currencies:
+    default: true
+  coffers.command.paytoggle:
+    default: true
+  coffers.command.pay.ignore-toggle:
+    default: op
   coffers.command.balance.others:
     default: op
   coffers.command.history.others:
     default: op
+<<<<<<< Updated upstream
+=======
+  coffers.command.status:
+    default: true
+>>>>>>> Stashed changes
   coffers.command.set:
+    default: op
+  coffers.command.rollback:
+    default: op
+  coffers.command.bank.create:
+    default: op
+  coffers.command.bank.delete:
+    default: op
+  coffers.command.bank.balance:
+    default: op
+  coffers.command.bank.deposit:
+    default: op
+  coffers.command.bank.withdraw:
+    default: op
+  coffers.command.bank.history:
     default: op
   coffers.command.migratevault:
     default: op
@@ -25,5 +70,14 @@ permissions:
     default: op
   coffers.command.backup:
     default: op
+<<<<<<< Updated upstream
   coffers.command.import:
     default: op
+=======
+  coffers.command.export:
+    default: op
+  coffers.command.import:
+    default: op
+  coffers.command.restore:
+    default: op
+>>>>>>> Stashed changes

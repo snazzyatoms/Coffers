@@ -10,9 +10,17 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+<<<<<<< Updated upstream
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+=======
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+>>>>>>> Stashed changes
 import java.util.UUID;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -22,6 +30,7 @@ final class SnapshotArchiveService {
 
     private static final DateTimeFormatter FILE_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
+<<<<<<< Updated upstream
     private final JavaPlugin plugin;
 
     SnapshotArchiveService(final JavaPlugin plugin) {
@@ -38,10 +47,34 @@ final class SnapshotArchiveService {
 
     File export(final String exportName, final StorageSnapshot snapshot) throws IOException {
         final File exportDirectory = new File(this.plugin.getDataFolder(), "exports");
+=======
+    private final File dataFolder;
+
+    SnapshotArchiveService(final JavaPlugin plugin) {
+        this(plugin.getDataFolder());
+    }
+
+    SnapshotArchiveService(final File dataFolder) {
+        this.dataFolder = dataFolder;
+    }
+
+    File backup(final String backupName, final StorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Set<String> banks) throws IOException {
+        final File backupDirectory = backupDirectory();
+        if (!backupDirectory.exists() && !backupDirectory.mkdirs()) {
+            throw new IOException("Could not create backups directory.");
+        }
+        final String safeName = safeName(backupName, "coffers-backup-" + FILE_STAMP.format(LocalDateTime.now()));
+        return writeSnapshot(snapshot, disabledPaymentAccounts, banks, new File(backupDirectory, safeName + ".yml"));
+    }
+
+    File export(final String exportName, final StorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Set<String> banks) throws IOException {
+        final File exportDirectory = exportDirectory();
+>>>>>>> Stashed changes
         if (!exportDirectory.exists() && !exportDirectory.mkdirs()) {
             throw new IOException("Could not create exports directory.");
         }
 
+<<<<<<< Updated upstream
         final String safeName = (exportName == null || exportName.isBlank())
                 ? "coffers-export-" + FILE_STAMP.format(LocalDateTime.now())
                 : exportName.replaceAll("[^a-zA-Z0-9._-]", "_");
@@ -51,16 +84,83 @@ final class SnapshotArchiveService {
     StorageSnapshot importSnapshot(final String importName) throws IOException {
         final String safeName = importName.replaceAll("[^a-zA-Z0-9._-]", "_");
         final File file = new File(new File(this.plugin.getDataFolder(), "exports"), safeName.endsWith(".yml") ? safeName : safeName + ".yml");
+=======
+        final String safeName = safeName(exportName, "coffers-export-" + FILE_STAMP.format(LocalDateTime.now()));
+        return writeSnapshot(snapshot, disabledPaymentAccounts, banks, new File(exportDirectory, safeName + ".yml"));
+    }
+
+    ArchiveSnapshot importSnapshot(final String importName) throws IOException {
+        final String safeName = importName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        final File file = new File(exportDirectory(), safeName.endsWith(".yml") ? safeName : safeName + ".yml");
+>>>>>>> Stashed changes
         if (!file.exists()) {
             throw new IOException("Export file not found: " + file.getName());
         }
         return readSnapshot(file);
     }
 
+<<<<<<< Updated upstream
     private File writeSnapshot(final StorageSnapshot snapshot, final File destination) throws IOException {
         final YamlConfiguration configuration = new YamlConfiguration();
         configuration.set("metadata.schema-version", 1);
         configuration.set("metadata.created-at", System.currentTimeMillis());
+=======
+    ArchiveSnapshot restoreBackup(final String backupName) throws IOException {
+        final File backupFile;
+        if (backupName == null || backupName.isBlank() || "latest".equalsIgnoreCase(backupName)) {
+            backupFile = latestBackupFile();
+            if (backupFile == null) {
+                throw new IOException("No Coffers backups were found.");
+            }
+        } else {
+            final String safeName = backupName.replaceAll("[^a-zA-Z0-9._-]", "_");
+            backupFile = new File(backupDirectory(), safeName.endsWith(".yml") ? safeName : safeName + ".yml");
+            if (!backupFile.exists()) {
+                throw new IOException("Backup file not found: " + backupFile.getName());
+            }
+        }
+        return readSnapshot(backupFile);
+    }
+
+    private File latestBackupFile() {
+        final File[] files = backupDirectory().listFiles((directory, name) -> name.endsWith(".yml"));
+        if (files == null || files.length == 0) {
+            return null;
+        }
+
+        File newest = files[0];
+        for (int index = 1; index < files.length; index++) {
+            if (files[index].lastModified() > newest.lastModified()) {
+                newest = files[index];
+            }
+        }
+        return newest;
+    }
+
+    private File backupDirectory() {
+        return new File(this.dataFolder, "backups");
+    }
+
+    private File exportDirectory() {
+        return new File(this.dataFolder, "exports");
+    }
+
+    private String safeName(final String requestedName, final String fallbackName) {
+        if (requestedName == null || requestedName.isBlank()) {
+            return fallbackName;
+        }
+        return requestedName.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    private File writeSnapshot(final StorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Set<String> banks, final File destination) throws IOException {
+        final YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("metadata.schema-version", 1);
+        configuration.set("metadata.created-at", System.currentTimeMillis());
+        for (final UUID accountId : disabledPaymentAccounts) {
+            configuration.set("preferences.disabled-payments." + accountId, Boolean.TRUE);
+        }
+        configuration.set("banks", new ArrayList<>(banks));
+>>>>>>> Stashed changes
 
         for (final Map.Entry<UUID, Map<String, BigDecimal>> entry : snapshot.balances().entrySet()) {
             final String accountPath = "balances." + entry.getKey();
@@ -79,6 +179,10 @@ final class SnapshotArchiveService {
                 configuration.set(entryPath + ".currency-id", ledgerEntry.currencyId());
                 configuration.set(entryPath + ".kind", ledgerEntry.kind().name());
                 configuration.set(entryPath + ".amount", ledgerEntry.amount().toPlainString());
+<<<<<<< Updated upstream
+=======
+                configuration.set(entryPath + ".previous-balance", ledgerEntry.previousBalance().toPlainString());
+>>>>>>> Stashed changes
                 configuration.set(entryPath + ".resulting-balance", ledgerEntry.resultingBalance().toPlainString());
                 final TransactionActor actor = ledgerEntry.actor() == null ? TransactionActor.system("snapshot-export") : ledgerEntry.actor();
                 configuration.set(entryPath + ".actor.type", actor.type().name());
@@ -86,6 +190,10 @@ final class SnapshotArchiveService {
                 configuration.set(entryPath + ".actor.name", actor.actorName());
                 configuration.set(entryPath + ".actor.source", actor.source());
                 configuration.set(entryPath + ".reason", ledgerEntry.reason());
+<<<<<<< Updated upstream
+=======
+                configuration.set(entryPath + ".reversal-of-reference-id", ledgerEntry.reversalOfReferenceId() == null ? null : ledgerEntry.reversalOfReferenceId().toString());
+>>>>>>> Stashed changes
                 configuration.set(entryPath + ".created-at", ledgerEntry.createdAtEpochMilli());
             }
         }
@@ -94,10 +202,19 @@ final class SnapshotArchiveService {
         return destination;
     }
 
+<<<<<<< Updated upstream
     private StorageSnapshot readSnapshot(final File file) {
         final YamlConfiguration configuration = YamlConfiguration.loadConfiguration(file);
         final Map<UUID, Map<String, BigDecimal>> balances = new LinkedHashMap<>();
         final Map<UUID, List<LedgerEntry>> history = new LinkedHashMap<>();
+=======
+    private ArchiveSnapshot readSnapshot(final File file) {
+        final YamlConfiguration configuration = YamlConfiguration.loadConfiguration(file);
+        final Map<UUID, Map<String, BigDecimal>> balances = new LinkedHashMap<>();
+        final Map<UUID, List<LedgerEntry>> history = new LinkedHashMap<>();
+        final Set<UUID> disabledPaymentAccounts = new LinkedHashSet<>();
+        final Set<String> banks = new LinkedHashSet<>();
+>>>>>>> Stashed changes
 
         final ConfigurationSection balancesSection = configuration.getConfigurationSection("balances");
         if (balancesSection != null) {
@@ -147,9 +264,17 @@ final class SnapshotArchiveService {
                             entrySection.getString("currency-id"),
                             TransactionKind.valueOf(entrySection.getString("kind")),
                             new BigDecimal(entrySection.getString("amount", "0")),
+<<<<<<< Updated upstream
                             new BigDecimal(entrySection.getString("resulting-balance", "0")),
                             actor,
                             entrySection.getString("reason"),
+=======
+                            readPreviousBalance(entrySection),
+                            new BigDecimal(entrySection.getString("resulting-balance", "0")),
+                            actor,
+                            entrySection.getString("reason"),
+                            entrySection.getString("reversal-of-reference-id") == null ? null : UUID.fromString(entrySection.getString("reversal-of-reference-id")),
+>>>>>>> Stashed changes
                             entrySection.getLong("created-at")
                     ));
                 }
@@ -157,6 +282,47 @@ final class SnapshotArchiveService {
             }
         }
 
+<<<<<<< Updated upstream
         return new StorageSnapshot(balances, history);
+=======
+        final ConfigurationSection preferencesSection = configuration.getConfigurationSection("preferences.disabled-payments");
+        if (preferencesSection != null) {
+            for (final String accountKey : preferencesSection.getKeys(false)) {
+                try {
+                    if (preferencesSection.getBoolean(accountKey, false)) {
+                        disabledPaymentAccounts.add(UUID.fromString(accountKey));
+                    }
+                } catch (final IllegalArgumentException ignored) {
+                    // Ignore malformed UUIDs in imported preference data.
+                }
+            }
+        }
+
+        final List<?> storedBanks = configuration.getList("banks");
+        if (storedBanks != null) {
+            for (final Object value : storedBanks) {
+                if (value != null && !value.toString().isBlank()) {
+                    banks.add(value.toString());
+                }
+            }
+        }
+
+        return new ArchiveSnapshot(new StorageSnapshot(balances, history), disabledPaymentAccounts, banks);
+    }
+
+    private BigDecimal readPreviousBalance(final ConfigurationSection entrySection) {
+        if (entrySection.getString("previous-balance") != null) {
+            return new BigDecimal(entrySection.getString("previous-balance"));
+        }
+
+        final BigDecimal amount = new BigDecimal(entrySection.getString("amount", "0"));
+        final BigDecimal resultingBalance = new BigDecimal(entrySection.getString("resulting-balance", "0"));
+        final TransactionKind kind = TransactionKind.valueOf(entrySection.getString("kind"));
+        return switch (kind) {
+            case DEPOSIT, TRANSFER_IN -> resultingBalance.subtract(amount);
+            case WITHDRAWAL, TRANSFER_OUT -> resultingBalance.add(amount);
+            case SET -> resultingBalance;
+        };
+>>>>>>> Stashed changes
     }
 }

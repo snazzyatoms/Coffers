@@ -8,6 +8,7 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
 import org.bukkit.configuration.ConfigurationSection;
@@ -22,6 +23,7 @@ public final class CoffersPlugin extends JavaPlugin {
     private MigrationGateway migrationService = new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
     private SnapshotArchiveService archiveService;
     private CoffersPlaceholderExpansion placeholderExpansion;
+<<<<<<< Updated upstream
 
     @Override
     public void onEnable() {
@@ -32,6 +34,28 @@ public final class CoffersPlugin extends JavaPlugin {
         final CoffersCommand executor = new CoffersCommand(this);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
+=======
+    private PaymentPreferenceService paymentPreferences;
+    private BankRegistryService bankRegistry;
+    private DiagnosticsReportService diagnostics;
+    private CoffersMessagePalette messages;
+
+    @Override
+    public void onEnable() {
+        if (getServer().getPluginManager().getPlugin("CoffersLegacy") != null) {
+            getLogger().warning("Coffers-Legacy.jar is installed alongside Coffers.jar. Coffers will stay active, but the legacy jar should be removed to avoid confusing command overlap.");
+        }
+
+        saveDefaultConfig();
+        this.archiveService = new SnapshotArchiveService(this);
+        this.diagnostics = new DiagnosticsReportService(this);
+        this.messages = CoffersMessagePalette.fromConfig(getConfig());
+
+        final CoffersCommandHandler executor = new CoffersCommandHandler(this);
+        registerCommand("coffers", executor);
+        registerCommand("baltop", executor);
+        registerCommand("paytoggle", executor);
+>>>>>>> Stashed changes
 
         if (!loadRuntime(false)) {
             getServer().getPluginManager().disablePlugin(this);
@@ -58,12 +82,37 @@ public final class CoffersPlugin extends JavaPlugin {
         return this.migrationService;
     }
 
+<<<<<<< Updated upstream
+=======
+    PaymentPreferenceService paymentPreferences() {
+        return this.paymentPreferences;
+    }
+
+    CoffersMessagePalette messages() {
+        return this.messages;
+    }
+
+>>>>>>> Stashed changes
     SnapshotArchiveService archiveService() {
         return this.archiveService;
     }
 
+<<<<<<< Updated upstream
     boolean reloadRuntime() {
         reloadConfig();
+=======
+    BankRegistryService bankRegistry() {
+        return this.bankRegistry;
+    }
+
+    DiagnosticsReportService diagnostics() {
+        return this.diagnostics;
+    }
+
+    boolean reloadRuntime() {
+        reloadConfig();
+        this.messages = CoffersMessagePalette.fromConfig(getConfig());
+>>>>>>> Stashed changes
         shutdownRuntime();
         return loadRuntime(true);
     }
@@ -81,6 +130,14 @@ public final class CoffersPlugin extends JavaPlugin {
             final List<CurrencyDefinition> currencies = loadCurrencies();
             final EconomyStorage storage = createStorage();
             storage.initialize();
+            this.paymentPreferences = new PaymentPreferenceService(
+                    this,
+                    getConfig().getString("payments.preferences-file", "payment-preferences.yml")
+            );
+            this.bankRegistry = new BankRegistryService(
+                    this,
+                    getConfig().getString("banks.registry-file", "banks.yml")
+            );
 
             final String defaultCurrencyId = getConfig().getString("currencies.default",
                     currencies.isEmpty() ? "coins" : currencies.getFirst().id()
@@ -102,6 +159,11 @@ public final class CoffersPlugin extends JavaPlugin {
             registerVaultCompatibility();
             configureMigrationGateway();
             registerPlaceholderSupport();
+<<<<<<< Updated upstream
+=======
+            writeStartupDiagnostics();
+            logStartupSummary();
+>>>>>>> Stashed changes
 
             if (reloading) {
                 getLogger().info("Reloaded Coffers runtime successfully.");
@@ -119,6 +181,11 @@ public final class CoffersPlugin extends JavaPlugin {
         getServer().getServicesManager().unregisterAll(this);
         this.vaultEconomyProvider = null;
         this.migrationService = new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
+<<<<<<< Updated upstream
+=======
+        this.paymentPreferences = null;
+        this.bankRegistry = null;
+>>>>>>> Stashed changes
         if (this.economy != null) {
             this.economy.close();
             this.economy = null;
@@ -184,6 +251,68 @@ public final class CoffersPlugin extends JavaPlugin {
         }
     }
 
+<<<<<<< Updated upstream
+=======
+    String configuredStorageType() {
+        return getConfig().getString("storage.type", "yaml").toLowerCase(Locale.ROOT);
+    }
+
+    String configuredVaultBridgeMode() {
+        return getConfig().getString("compatibility.vault-bridge", "auto").toLowerCase(Locale.ROOT);
+    }
+
+    boolean isVaultInstalled() {
+        return getServer().getPluginManager().getPlugin("Vault") != null;
+    }
+
+    boolean isVaultCompatibilityActive() {
+        return this.vaultEconomyProvider != null;
+    }
+
+    boolean isPlaceholderExpansionActive() {
+        return this.placeholderExpansion != null;
+    }
+
+    private void writeStartupDiagnostics() {
+        final String vaultStatus;
+        if (isVaultCompatibilityActive()) {
+            vaultStatus = "active";
+        } else if (!isVaultInstalled()) {
+            vaultStatus = "standalone";
+        } else if ("disabled".equalsIgnoreCase(configuredVaultBridgeMode())) {
+            vaultStatus = "disabled by config";
+        } else {
+            vaultStatus = "available but inactive";
+        }
+
+        this.diagnostics.writeStartupReport(
+                "modern",
+                configuredStorageType(),
+                this.economy.defaultCurrencyId(),
+                this.economy.currencies().size(),
+                configuredVaultBridgeMode(),
+                vaultStatus,
+                isPlaceholderExpansionActive(),
+                this.paymentPreferences.disabledPaymentCount(),
+                this.bankRegistry.bankCount()
+        );
+    }
+
+    private void logStartupSummary() {
+        getLogger().info("Startup diagnostics: storage=" + configuredStorageType()
+                + ", defaultCurrency=" + this.economy.defaultCurrencyId()
+                + ", currencies=" + this.economy.currencies().size()
+                + ", vaultMode=" + configuredVaultBridgeMode()
+                + ", banks=" + this.bankRegistry.bankCount());
+    }
+
+    private void registerCommand(final String commandName, final CoffersCommandHandler executor) {
+        final PluginCommand command = Objects.requireNonNull(getCommand(commandName), commandName + " command missing from plugin.yml");
+        command.setExecutor(executor);
+        command.setTabCompleter(executor);
+    }
+
+>>>>>>> Stashed changes
     private List<CurrencyDefinition> loadCurrencies() {
         final List<CurrencyDefinition> currencies = new ArrayList<>();
         final ConfigurationSection definitionsSection = getConfig().getConfigurationSection("currencies.definitions");

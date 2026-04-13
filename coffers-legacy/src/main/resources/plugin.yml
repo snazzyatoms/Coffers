@@ -8,16 +8,67 @@ softdepend: [Vault]
 commands:
   cofferslegacy:
     description: Core Coffers Legacy economy commands.
-    usage: /cofferslegacy <balance|pay|set|history|currencies|migratevault>
+    usage: /cofferslegacy <balance|pay|paytoggle|set|history|rollback|bank|status|top|currencies|migratevault|reload|backup [name]|export [name]|import <name>|restore [backup-name|latest]>
     permission: cofferslegacy.command.use
+  baltop:
+    description: View the top Coffers Legacy balances.
+    usage: /baltop [currency] [limit]
+    permission: cofferslegacy.command.use
+  paytoggle:
+    description: Toggle whether other players can send you Coffers Legacy payments.
+    usage: /paytoggle [on|off]
+    permission: cofferslegacy.command.paytoggle
 permissions:
   cofferslegacy.command.use:
     default: true
+  cofferslegacy.command.balance:
+    default: true
+  cofferslegacy.command.pay:
+    default: true
+  cofferslegacy.command.history:
+    default: true
+  cofferslegacy.command.top:
+    default: true
+  cofferslegacy.command.currencies:
+    default: true
+  cofferslegacy.command.paytoggle:
+    default: true
+  cofferslegacy.command.pay.ignore-toggle:
+    default: op
   cofferslegacy.command.balance.others:
     default: op
   cofferslegacy.command.history.others:
     default: op
+<<<<<<< Updated upstream
+=======
+  cofferslegacy.command.status:
+    default: true
+>>>>>>> Stashed changes
   cofferslegacy.command.set:
     default: op
+  cofferslegacy.command.rollback:
+    default: op
+  cofferslegacy.command.bank.create:
+    default: op
+  cofferslegacy.command.bank.delete:
+    default: op
+  cofferslegacy.command.bank.balance:
+    default: op
+  cofferslegacy.command.bank.deposit:
+    default: op
+  cofferslegacy.command.bank.withdraw:
+    default: op
+  cofferslegacy.command.bank.history:
+    default: op
   cofferslegacy.command.migratevault:
+    default: op
+  cofferslegacy.command.reload:
+    default: op
+  cofferslegacy.command.backup:
+    default: op
+  cofferslegacy.command.export:
+    default: op
+  cofferslegacy.command.import:
+    default: op
+  cofferslegacy.command.restore:
     default: op

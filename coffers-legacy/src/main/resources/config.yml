@@ -1,18 +1,87 @@
-# Coffers Legacy runs as a standalone economy plugin on older server baselines.
-# Vault support is optional and intended for legacy plugin compatibility only.
+# ---------------------------------------------------------------------------
+# Coffers Legacy Configuration
+# ---------------------------------------------------------------------------
+# Coffers Legacy is the legacy line of Coffers for older Bukkit-family server
+# environments.
+#
+# Like the modern line, Coffers Legacy is designed to run standalone first.
+# Vault is optional and only needed when older plugins still rely on it.
+#
+# Most server owners only need to review:
+# - compatibility.vault-bridge
+# - storage.type
+# - currencies.default
+# - currencies.definitions
+# ---------------------------------------------------------------------------
+
+# Controls whether Coffers Legacy should expose a Vault economy provider when
+# Vault is available on the server.
+#
+# Modes:
+# - auto     : enable the Vault bridge only when Vault is present
+# - enabled  : always try to register with Vault when Vault is present
+# - disabled : never register the Vault bridge
 compatibility:
   vault-bridge: auto
 
+# ---------------------------------------------------------------------------
+# Chat Style
+# ---------------------------------------------------------------------------
+# These values control Coffers Legacy's built-in message palette.
+# Adjust them to better match your server theme and branding.
+chat-style:
+  prefix: "&6[Coffers Legacy]&r "
+  primary: "&f"
+  secondary: "&7"
+  accent: "&6"
+  success: "&a"
+  error: "&c"
+  warning: "&e"
+  highlight: "&b"
+  usage: "&e"
+  bullet: "&8- &r"
+
+# ---------------------------------------------------------------------------
+# Runtime
+# ---------------------------------------------------------------------------
+# Internal schema/version value used by Coffers Legacy-managed files.
+# Do not change this manually unless a future Coffers update says otherwise.
 runtime:
   schema-version: 1
 
+# ---------------------------------------------------------------------------
+# Payment Preferences
+# ---------------------------------------------------------------------------
+# Stores per-player payment preferences such as /paytoggle state.
+payments:
+  preferences-file: legacy-payment-preferences.yml
+
+# ---------------------------------------------------------------------------
+# Bank Registry
+# ---------------------------------------------------------------------------
+# Stores Coffers Legacy bank names and their linked internal bank accounts.
+banks:
+  registry-file: legacy-banks.yml
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+# Choose where balances and transaction history are stored.
+#
+# Available types:
+# - yaml   : simple file storage, easy to inspect and legacy-friendly
+# - sqlite : local database storage for a single server
+# - mysql  : shared database storage for larger or connected environments
 storage:
   type: yaml
+
   yaml:
     accounts-file: legacy-accounts.yml
     history-file: legacy-history.yml
+
   sqlite:
     file: coffers-legacy.db
+
   mysql:
     host: localhost
     port: 3306
@@ -21,11 +90,20 @@ storage:
     password: change-me
     parameters: useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 
+# ---------------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------------
+# Maximum number of ledger entries Coffers Legacy keeps per account.
 history:
   max-per-account: 50
 
+# ---------------------------------------------------------------------------
+# Currencies
+# ---------------------------------------------------------------------------
+# Set the default currency and define one or more enabled currencies below.
 currencies:
   default: coins
+
   definitions:
     coins:
       enabled: true
@@ -40,11 +118,12 @@ currencies:
         space-between-amount-and-name: true
         use-grouping: true
         show-trailing-zeros: true
+
     gems:
       enabled: true
       singular: gem
       plural: gems
-      symbol: "*"
+      symbol: "◆"
       fractional-digits: 0
       starting-balance: 0
       format:

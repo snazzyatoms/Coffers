@@ -1,18 +1,90 @@
-# Coffers runs as a standalone economy plugin.
-# Vault support is optional and intended for legacy plugin compatibility only.
+# ---------------------------------------------------------------------------
+# Coffers Configuration
+# ---------------------------------------------------------------------------
+# Coffers is designed to run as a standalone-first economy plugin.
+#
+# Vault is optional:
+# - If Vault is installed and the bridge is enabled, Coffers can expose itself
+#   as a Vault economy provider for older plugins.
+# - If Vault is not installed, Coffers will continue to run normally.
+#
+# Most servers only need to review:
+# - compatibility.vault-bridge
+# - storage.type
+# - currencies.default
+# - currencies.definitions
+# ---------------------------------------------------------------------------
+
+# Controls whether Coffers should expose a Vault economy provider when Vault is
+# available on the server.
+#
+# Modes:
+# - auto     : enable the Vault bridge only when Vault is present
+# - enabled  : always try to register with Vault when Vault is present
+# - disabled : never register the Vault bridge
 compatibility:
   vault-bridge: auto
 
+# ---------------------------------------------------------------------------
+# Chat Style
+# ---------------------------------------------------------------------------
+# These values control Coffers' built-in message palette.
+# Server owners can adjust the prefix and color roles to better match their
+# server theme without editing plugin code.
+chat-style:
+  prefix: "&6[Coffers]&r "
+  primary: "&f"
+  secondary: "&7"
+  accent: "&6"
+  success: "&a"
+  error: "&c"
+  warning: "&e"
+  highlight: "&b"
+  usage: "&e"
+  bullet: "&8- &r"
+
+# ---------------------------------------------------------------------------
+# Runtime
+# ---------------------------------------------------------------------------
+# Internal schema/version value used by Coffers-managed files.
+# This should not be changed manually unless a future Coffers update explicitly
+# instructs you to do so.
 runtime:
   schema-version: 1
 
+# ---------------------------------------------------------------------------
+# Payment Preferences
+# ---------------------------------------------------------------------------
+# Stores per-player payment preferences such as /paytoggle state.
+payments:
+  preferences-file: payment-preferences.yml
+
+# ---------------------------------------------------------------------------
+# Bank Registry
+# ---------------------------------------------------------------------------
+# Stores Coffers bank names and their linked internal bank accounts.
+banks:
+  registry-file: banks.yml
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+# Choose where balances and transaction history are stored.
+#
+# Available types:
+# - yaml   : simple file storage, easy to inspect and small-server friendly
+# - sqlite : local database storage, good for single-server production setups
+# - mysql  : shared database storage, useful for larger or networked setups
 storage:
   type: yaml
+
   yaml:
     accounts-file: accounts.yml
     history-file: history.yml
+
   sqlite:
     file: coffers.db
+
   mysql:
     host: localhost
     port: 3306
@@ -21,17 +93,33 @@ storage:
     password: change-me
     parameters: useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 
+# ---------------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------------
+# Maximum number of ledger entries Coffers keeps per account.
+# Older entries beyond this limit are trimmed when new entries are saved.
 history:
   max-per-account: 50
 
+# ---------------------------------------------------------------------------
+# Currencies
+# ---------------------------------------------------------------------------
+# Set the default currency and define one or more enabled currencies below.
+#
+# Formatting notes:
+# - symbol-first: true  -> "$100"
+# - symbol-first: false -> "100 $"
+# - fractional-digits controls precision and rounding style
+# - starting-balance is applied when a new account is first created
 currencies:
   default: coins
+
   definitions:
     coins:
       enabled: true
       singular: coin
       plural: coins
-      symbol: $
+      symbol: "$"
       fractional-digits: 2
       starting-balance: 100.00
       format:
@@ -40,11 +128,12 @@ currencies:
         space-between-amount-and-name: true
         use-grouping: true
         show-trailing-zeros: true
+
     gems:
       enabled: true
       singular: gem
       plural: gems
-      symbol: ◆
+      symbol: "◆"
       fractional-digits: 0
       starting-balance: 0
       format:

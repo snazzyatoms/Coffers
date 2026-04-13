@@ -47,16 +47,23 @@ final class SqlEconomyStorage implements EconomyStorage {
                         currency_id VARCHAR(64) NOT NULL,
                         transaction_kind VARCHAR(32) NOT NULL,
                         amount_value VARCHAR(64) NOT NULL,
+                        previous_balance VARCHAR(64) NULL,
                         resulting_balance VARCHAR(64) NOT NULL,
                         actor_type VARCHAR(32) NOT NULL,
                         actor_id VARCHAR(36) NULL,
                         actor_name VARCHAR(128) NULL,
                         actor_source VARCHAR(128) NULL,
                         reason_value VARCHAR(255) NULL,
+                        reversal_of_reference_id VARCHAR(36) NULL,
                         created_at BIGINT NOT NULL,
                         PRIMARY KEY (entry_id)
                     )
                     """);
+<<<<<<< Updated upstream
+=======
+            ensureColumn(statement, "coffers_history", "previous_balance", "VARCHAR(64) NULL");
+            ensureColumn(statement, "coffers_history", "reversal_of_reference_id", "VARCHAR(36) NULL");
+>>>>>>> Stashed changes
             statement.execute("""
                     CREATE TABLE IF NOT EXISTS coffers_metadata (
                         metadata_key VARCHAR(64) NOT NULL,
@@ -99,6 +106,7 @@ final class SqlEconomyStorage implements EconomyStorage {
                             resultSet.getString("currency_id"),
                             TransactionKind.valueOf(resultSet.getString("transaction_kind")),
                             new BigDecimal(resultSet.getString("amount_value")),
+                            readPreviousBalance(resultSet),
                             new BigDecimal(resultSet.getString("resulting_balance")),
                             actorType == null
                                     ? TransactionActor.system("sql-storage")
@@ -109,6 +117,7 @@ final class SqlEconomyStorage implements EconomyStorage {
                                             resultSet.getString("actor_source")
                                     ),
                             resultSet.getString("reason_value"),
+                            resultSet.getString("reversal_of_reference_id") == null ? null : UUID.fromString(resultSet.getString("reversal_of_reference_id")),
                             resultSet.getLong("created_at")
                     );
                     history.computeIfAbsent(entry.accountId(), ignored -> new ArrayList<>()).add(entry);
@@ -152,9 +161,9 @@ final class SqlEconomyStorage implements EconomyStorage {
             try (PreparedStatement insert = connection.prepareStatement("""
                     INSERT INTO coffers_history (
                         entry_id, account_uuid, reference_id, counterparty_uuid, currency_id, transaction_kind,
-                        amount_value, resulting_balance, actor_type, actor_id, actor_name, actor_source,
-                        reason_value, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        amount_value, previous_balance, resulting_balance, actor_type, actor_id, actor_name, actor_source,
+                        reason_value, reversal_of_reference_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """)) {
                 for (final LedgerEntry entry : entries) {
                     final TransactionActor actor = entry.actor() == null ? TransactionActor.system("sql-storage") : entry.actor();
@@ -165,6 +174,7 @@ final class SqlEconomyStorage implements EconomyStorage {
                     insert.setString(5, entry.currencyId());
                     insert.setString(6, entry.kind().name());
                     insert.setString(7, entry.amount().toPlainString());
+<<<<<<< Updated upstream
                     insert.setString(8, entry.resultingBalance().toPlainString());
                     insert.setString(9, actor.type().name());
                     insert.setString(10, actor.actorId() == null ? null : actor.actorId().toString());
@@ -172,6 +182,17 @@ final class SqlEconomyStorage implements EconomyStorage {
                     insert.setString(12, actor.source());
                     insert.setString(13, entry.reason());
                     insert.setLong(14, entry.createdAtEpochMilli());
+=======
+                    insert.setString(8, entry.previousBalance().toPlainString());
+                    insert.setString(9, entry.resultingBalance().toPlainString());
+                    insert.setString(10, actor.type().name());
+                    insert.setString(11, actor.actorId() == null ? null : actor.actorId().toString());
+                    insert.setString(12, actor.actorName());
+                    insert.setString(13, actor.source());
+                    insert.setString(14, entry.reason());
+                    insert.setString(15, entry.reversalOfReferenceId() == null ? null : entry.reversalOfReferenceId().toString());
+                    insert.setLong(16, entry.createdAtEpochMilli());
+>>>>>>> Stashed changes
                     insert.addBatch();
                 }
                 insert.executeBatch();
@@ -188,5 +209,29 @@ final class SqlEconomyStorage implements EconomyStorage {
         return this.properties.isEmpty()
                 ? DriverManager.getConnection(this.jdbcUrl)
                 : DriverManager.getConnection(this.jdbcUrl, this.properties);
+    }
+
+    private void ensureColumn(final Statement statement, final String table, final String column, final String definition) {
+        try {
+            statement.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+        } catch (final Exception ignored) {
+            // Column already exists or the database does not require migration.
+        }
+    }
+
+    private BigDecimal readPreviousBalance(final ResultSet resultSet) throws Exception {
+        final String previousValue = resultSet.getString("previous_balance");
+        if (previousValue != null) {
+            return new BigDecimal(previousValue);
+        }
+
+        final BigDecimal amount = new BigDecimal(resultSet.getString("amount_value"));
+        final BigDecimal resultingBalance = new BigDecimal(resultSet.getString("resulting_balance"));
+        final TransactionKind kind = TransactionKind.valueOf(resultSet.getString("transaction_kind"));
+        return switch (kind) {
+            case DEPOSIT, TRANSFER_IN -> resultingBalance.subtract(amount);
+            case WITHDRAWAL, TRANSFER_OUT -> resultingBalance.add(amount);
+            case SET -> resultingBalance;
+        };
     }
 }

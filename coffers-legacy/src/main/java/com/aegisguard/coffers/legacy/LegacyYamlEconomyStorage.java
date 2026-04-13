@@ -123,12 +123,14 @@ final class LegacyYamlEconomyStorage implements LegacyEconomyStorage {
         this.historyConfig.set(path + ".currency-id", entry.getCurrencyId());
         this.historyConfig.set(path + ".kind", entry.getKind().name());
         this.historyConfig.set(path + ".amount", entry.getAmount().toPlainString());
+        this.historyConfig.set(path + ".previous-balance", entry.getPreviousBalance().toPlainString());
         this.historyConfig.set(path + ".resulting-balance", entry.getResultingBalance().toPlainString());
         this.historyConfig.set(path + ".actor.type", actor.getType().name());
         this.historyConfig.set(path + ".actor.id", actor.getActorId() == null ? null : actor.getActorId().toString());
         this.historyConfig.set(path + ".actor.name", actor.getActorName());
         this.historyConfig.set(path + ".actor.source", actor.getSource());
         this.historyConfig.set(path + ".reason", entry.getReason());
+        this.historyConfig.set(path + ".reversal-of-reference-id", entry.getReversalOfReferenceId() == null ? null : entry.getReversalOfReferenceId().toString());
         this.historyConfig.set(path + ".created-at", Long.valueOf(entry.getCreatedAtEpochMilli()));
     }
 
@@ -150,10 +152,33 @@ final class LegacyYamlEconomyStorage implements LegacyEconomyStorage {
                 section.getString("currency-id"),
                 LegacyTransactionKind.valueOf(section.getString("kind")),
                 new BigDecimal(section.getString("amount", "0")),
+                readPreviousBalance(section),
                 new BigDecimal(section.getString("resulting-balance", "0")),
                 actor,
                 section.getString("reason"),
+                section.getString("reversal-of-reference-id") == null ? null : UUID.fromString(section.getString("reversal-of-reference-id")),
                 section.getLong("created-at")
         );
+    }
+
+    private BigDecimal readPreviousBalance(final ConfigurationSection section) {
+        if (section.getString("previous-balance") != null) {
+            return new BigDecimal(section.getString("previous-balance"));
+        }
+
+        BigDecimal amount = new BigDecimal(section.getString("amount", "0"));
+        BigDecimal resultingBalance = new BigDecimal(section.getString("resulting-balance", "0"));
+        LegacyTransactionKind kind = LegacyTransactionKind.valueOf(section.getString("kind"));
+        switch (kind) {
+            case DEPOSIT:
+            case TRANSFER_IN:
+                return resultingBalance.subtract(amount);
+            case WITHDRAWAL:
+            case TRANSFER_OUT:
+                return resultingBalance.add(amount);
+            case SET:
+            default:
+                return resultingBalance;
+        }
     }
 }

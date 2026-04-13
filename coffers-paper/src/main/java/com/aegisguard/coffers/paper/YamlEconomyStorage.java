@@ -133,12 +133,14 @@ final class YamlEconomyStorage implements EconomyStorage {
         this.historyConfig.set(path + ".currency-id", entry.currencyId());
         this.historyConfig.set(path + ".kind", entry.kind().name());
         this.historyConfig.set(path + ".amount", entry.amount().toPlainString());
+        this.historyConfig.set(path + ".previous-balance", entry.previousBalance().toPlainString());
         this.historyConfig.set(path + ".resulting-balance", entry.resultingBalance().toPlainString());
         this.historyConfig.set(path + ".actor.type", actor.type().name());
         this.historyConfig.set(path + ".actor.id", actor.actorId() == null ? null : actor.actorId().toString());
         this.historyConfig.set(path + ".actor.name", actor.actorName());
         this.historyConfig.set(path + ".actor.source", actor.source());
         this.historyConfig.set(path + ".reason", entry.reason());
+        this.historyConfig.set(path + ".reversal-of-reference-id", entry.reversalOfReferenceId() == null ? null : entry.reversalOfReferenceId().toString());
         this.historyConfig.set(path + ".created-at", entry.createdAtEpochMilli());
     }
 
@@ -160,10 +162,27 @@ final class YamlEconomyStorage implements EconomyStorage {
                 section.getString("currency-id"),
                 TransactionKind.valueOf(section.getString("kind")),
                 new BigDecimal(section.getString("amount", "0")),
+                readPreviousBalance(section),
                 new BigDecimal(section.getString("resulting-balance", "0")),
                 actor,
                 section.getString("reason"),
+                section.getString("reversal-of-reference-id") == null ? null : UUID.fromString(section.getString("reversal-of-reference-id")),
                 section.getLong("created-at")
         );
+    }
+
+    private BigDecimal readPreviousBalance(final ConfigurationSection section) {
+        if (section.getString("previous-balance") != null) {
+            return new BigDecimal(section.getString("previous-balance"));
+        }
+
+        final BigDecimal amount = new BigDecimal(section.getString("amount", "0"));
+        final BigDecimal resultingBalance = new BigDecimal(section.getString("resulting-balance", "0"));
+        final TransactionKind kind = TransactionKind.valueOf(section.getString("kind"));
+        return switch (kind) {
+            case DEPOSIT, TRANSFER_IN -> resultingBalance.subtract(amount);
+            case WITHDRAWAL, TRANSFER_OUT -> resultingBalance.add(amount);
+            case SET -> resultingBalance;
+        };
     }
 }

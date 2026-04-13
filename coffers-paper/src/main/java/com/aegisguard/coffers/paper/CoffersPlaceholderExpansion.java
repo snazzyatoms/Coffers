@@ -51,6 +51,30 @@ final class CoffersPlaceholderExpansion extends PlaceholderExpansion {
             return this.plugin.economy().format(this.plugin.economy().getBalance(player.getUniqueId()));
         }
 
+<<<<<<< Updated upstream
+=======
+        if ("balance_raw".equalsIgnoreCase(params)) {
+            if (player == null) {
+                return "";
+            }
+            return this.plugin.economy().getBalance(player.getUniqueId()).toPlainString();
+        }
+
+        if ("formatted_balance".equalsIgnoreCase(params)) {
+            if (player == null) {
+                return "";
+            }
+            return this.plugin.economy().format(this.plugin.economy().getBalance(player.getUniqueId()));
+        }
+
+        if ("paytoggle".equalsIgnoreCase(params)) {
+            if (player == null) {
+                return "";
+            }
+            return this.plugin.paymentPreferences().allowsPayments(player.getUniqueId()) ? "accepting" : "blocked";
+        }
+
+>>>>>>> Stashed changes
         if (params.toLowerCase().startsWith("balance_")) {
             if (player == null) {
                 return "";
@@ -62,6 +86,25 @@ final class CoffersPlaceholderExpansion extends PlaceholderExpansion {
             return this.plugin.economy().format(currencyId, this.plugin.economy().getBalance(player.getUniqueId(), currencyId));
         }
 
+<<<<<<< Updated upstream
+=======
+        if (params.toLowerCase().startsWith("balance_raw_")) {
+            if (player == null) {
+                return "";
+            }
+            final String currencyId = params.substring("balance_raw_".length());
+            if (this.plugin.economy().currency(currencyId).isEmpty()) {
+                return "";
+            }
+            return this.plugin.economy().getBalance(player.getUniqueId(), currencyId).toPlainString();
+        }
+
+        if (params.toLowerCase().startsWith("currency_symbol_")) {
+            final String currencyId = params.substring("currency_symbol_".length());
+            return this.plugin.economy().currency(currencyId).map(currency -> currency.symbol()).orElse("");
+        }
+
+>>>>>>> Stashed changes
         final TopPlaceholderQuery topNameQuery = parseTopPlaceholderQuery(params, "top_name_", this.plugin.economy().defaultCurrencyId());
         if (topNameQuery != null) {
             return topName(topNameQuery.currencyId(), topNameQuery.rankToken());
@@ -72,6 +115,14 @@ final class CoffersPlaceholderExpansion extends PlaceholderExpansion {
             return topBalance(topBalanceQuery.currencyId(), topBalanceQuery.rankToken());
         }
 
+<<<<<<< Updated upstream
+=======
+        final TopPlaceholderQuery topBalanceRawQuery = parseTopPlaceholderQuery(params, "top_balance_raw_", this.plugin.economy().defaultCurrencyId());
+        if (topBalanceRawQuery != null) {
+            return topBalanceRaw(topBalanceRawQuery.currencyId(), topBalanceRawQuery.rankToken());
+        }
+
+>>>>>>> Stashed changes
         return "";
     }
 
@@ -108,7 +159,11 @@ final class CoffersPlaceholderExpansion extends PlaceholderExpansion {
             return "";
         }
 
+<<<<<<< Updated upstream
         final var topAccounts = this.plugin.economy().topAccounts(currencyId, index + 1);
+=======
+        final var topAccounts = this.plugin.economyService().topAccounts(currencyId, index + 1, accountId -> !this.plugin.bankRegistry().isBankAccount(accountId));
+>>>>>>> Stashed changes
         if (topAccounts.size() <= index) {
             return "";
         }
@@ -123,7 +178,11 @@ final class CoffersPlaceholderExpansion extends PlaceholderExpansion {
             return "";
         }
 
+<<<<<<< Updated upstream
         final var topAccounts = this.plugin.economy().topAccounts(currencyId, index + 1);
+=======
+        final var topAccounts = this.plugin.economyService().topAccounts(currencyId, index + 1, accountId -> !this.plugin.bankRegistry().isBankAccount(accountId));
+>>>>>>> Stashed changes
         if (topAccounts.size() <= index) {
             return "";
         }
@@ -131,6 +190,23 @@ final class CoffersPlaceholderExpansion extends PlaceholderExpansion {
         return this.plugin.economy().format(currencyId, topAccounts.get(index).balance());
     }
 
+<<<<<<< Updated upstream
+=======
+    private String topBalanceRaw(final String currencyId, final String rankToken) {
+        final int index = parseRank(rankToken);
+        if (index < 0 || this.plugin.economy().currency(currencyId).isEmpty()) {
+            return "";
+        }
+
+        final var topAccounts = this.plugin.economyService().topAccounts(currencyId, index + 1, accountId -> !this.plugin.bankRegistry().isBankAccount(accountId));
+        if (topAccounts.size() <= index) {
+            return "";
+        }
+
+        return topAccounts.get(index).balance().toPlainString();
+    }
+
+>>>>>>> Stashed changes
     private static int parseRank(final String rankToken) {
         try {
             return Math.max(0, Integer.parseInt(rankToken) - 1);

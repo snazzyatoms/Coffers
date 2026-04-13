@@ -12,9 +12,11 @@ final class LegacyLedgerEntry {
     private final String currencyId;
     private final LegacyTransactionKind kind;
     private final BigDecimal amount;
+    private final BigDecimal previousBalance;
     private final BigDecimal resultingBalance;
     private final LegacyTransactionActor actor;
     private final String reason;
+    private final UUID reversalOfReferenceId;
     private final long createdAtEpochMilli;
 
     LegacyLedgerEntry(
@@ -25,9 +27,11 @@ final class LegacyLedgerEntry {
             final String currencyId,
             final LegacyTransactionKind kind,
             final BigDecimal amount,
+            final BigDecimal previousBalance,
             final BigDecimal resultingBalance,
             final LegacyTransactionActor actor,
             final String reason,
+            final UUID reversalOfReferenceId,
             final long createdAtEpochMilli
     ) {
         this.entryId = entryId;
@@ -37,9 +41,11 @@ final class LegacyLedgerEntry {
         this.currencyId = currencyId;
         this.kind = kind;
         this.amount = amount;
+        this.previousBalance = previousBalance;
         this.resultingBalance = resultingBalance;
         this.actor = actor;
         this.reason = reason;
+        this.reversalOfReferenceId = reversalOfReferenceId;
         this.createdAtEpochMilli = createdAtEpochMilli;
     }
 
@@ -71,6 +77,10 @@ final class LegacyLedgerEntry {
         return this.amount;
     }
 
+    BigDecimal getPreviousBalance() {
+        return this.previousBalance;
+    }
+
     BigDecimal getResultingBalance() {
         return this.resultingBalance;
     }
@@ -81,6 +91,10 @@ final class LegacyLedgerEntry {
 
     String getReason() {
         return this.reason;
+    }
+
+    UUID getReversalOfReferenceId() {
+        return this.reversalOfReferenceId;
     }
 
     long getCreatedAtEpochMilli() {

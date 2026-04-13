@@ -6,7 +6,11 @@
 
     <groupId>com.aegisguard.coffers</groupId>
     <artifactId>coffers-parent</artifactId>
+<<<<<<< Updated upstream
     <version>0.2.0-SNAPSHOT</version>
+=======
+    <version>0.2.0</version>
+>>>>>>> Stashed changes
     <packaging>pom</packaging>
 
     <name>Coffers Parent</name>

@@ -17,13 +17,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -126,7 +129,8 @@ final class CoffersEconomyService implements CoffersEconomy {
         }
 
         createAccount(accountId);
-        final BigDecimal nextBalance = getBalance(accountId, normalizedCurrencyId).add(normalizedAmount);
+        final BigDecimal previousBalance = getBalance(accountId, normalizedCurrencyId);
+        final BigDecimal nextBalance = previousBalance.add(normalizedAmount);
         this.balances.get(accountId).put(normalizedCurrencyId, nextBalance);
 
         final LedgerEntry entry = recordEntry(
@@ -135,10 +139,12 @@ final class CoffersEconomyService implements CoffersEconomy {
                 normalizedCurrencyId,
                 TransactionKind.DEPOSIT,
                 normalizedAmount,
+                previousBalance,
                 nextBalance,
                 actor,
                 reason,
-                UUID.randomUUID()
+                UUID.randomUUID(),
+                null
         );
         persistAccount(accountId);
         persistHistory(accountId);
@@ -182,10 +188,12 @@ final class CoffersEconomyService implements CoffersEconomy {
                 normalizedCurrencyId,
                 TransactionKind.WITHDRAWAL,
                 normalizedAmount,
+                currentBalance,
                 nextBalance,
                 actor,
                 reason,
-                UUID.randomUUID()
+                UUID.randomUUID(),
+                null
         );
         persistAccount(accountId);
         persistHistory(accountId);
@@ -235,10 +243,12 @@ final class CoffersEconomyService implements CoffersEconomy {
                 normalizedCurrencyId,
                 TransactionKind.TRANSFER_OUT,
                 normalizedAmount,
+                fromBalance,
                 nextFromBalance,
                 actor,
                 reason,
-                referenceId
+                referenceId,
+                null
         );
         final LedgerEntry inEntry = recordEntry(
                 toAccountId,
@@ -246,10 +256,12 @@ final class CoffersEconomyService implements CoffersEconomy {
                 normalizedCurrencyId,
                 TransactionKind.TRANSFER_IN,
                 normalizedAmount,
+                getBalance(toAccountId, normalizedCurrencyId).subtract(normalizedAmount),
                 nextToBalance,
                 actor,
                 reason,
-                referenceId
+                referenceId,
+                null
         );
 
         persistAccount(fromAccountId);
@@ -284,6 +296,7 @@ final class CoffersEconomyService implements CoffersEconomy {
         }
 
         createAccount(accountId);
+        final BigDecimal previousBalance = getBalance(accountId, normalizedCurrencyId);
         this.balances.get(accountId).put(normalizedCurrencyId, normalizedAmount);
         final LedgerEntry entry = recordEntry(
                 accountId,
@@ -291,10 +304,12 @@ final class CoffersEconomyService implements CoffersEconomy {
                 normalizedCurrencyId,
                 TransactionKind.SET,
                 BigDecimal.ZERO.setScale(currency(normalizedCurrencyId).orElseThrow().fractionalDigits(), RoundingMode.HALF_UP),
+                previousBalance,
                 normalizedAmount,
                 actor,
                 reason,
-                UUID.randomUUID()
+                UUID.randomUUID(),
+                null
         );
         persistAccount(accountId);
         persistHistory(accountId);
@@ -310,9 +325,28 @@ final class CoffersEconomyService implements CoffersEconomy {
 
     @Override
     public synchronized List<LedgerEntry> transactionHistory(final UUID accountId, final int offset, final int limit) {
+<<<<<<< Updated upstream
         final List<LedgerEntry> entries = new ArrayList<>(this.history.getOrDefault(accountId, List.of()));
         entries.sort(Comparator.comparingLong(LedgerEntry::createdAtEpochMilli).reversed());
         return entries.stream()
+=======
+        return filteredTransactionHistory(accountId, offset, limit, null, null);
+    }
+
+    synchronized List<LedgerEntry> filteredTransactionHistory(
+            final UUID accountId,
+            final int offset,
+            final int limit,
+            final String currencyId,
+            final TransactionKind kind
+    ) {
+        final String normalizedCurrencyId = currencyId == null || currencyId.isBlank() ? null : normalizedCurrencyId(currencyId);
+        final List<LedgerEntry> entries = new ArrayList<>(this.history.getOrDefault(accountId, List.of()));
+        entries.sort(Comparator.comparingLong(LedgerEntry::createdAtEpochMilli).reversed());
+        return entries.stream()
+                .filter(entry -> normalizedCurrencyId == null || normalizedCurrencyId.equals(entry.currencyId()))
+                .filter(entry -> kind == null || kind == entry.kind())
+>>>>>>> Stashed changes
                 .skip(Math.max(offset, 0))
                 .limit(Math.max(limit, 0))
                 .toList();
@@ -320,8 +354,18 @@ final class CoffersEconomyService implements CoffersEconomy {
 
     @Override
     public synchronized List<AccountSnapshot> topAccounts(final String currencyId, final int limit) {
+<<<<<<< Updated upstream
         final String normalizedCurrencyId = normalizedCurrencyId(currencyId);
         return this.balances.entrySet().stream()
+=======
+        return topAccounts(currencyId, limit, accountId -> true);
+    }
+
+    synchronized List<AccountSnapshot> topAccounts(final String currencyId, final int limit, final Predicate<UUID> includeAccount) {
+        final String normalizedCurrencyId = normalizedCurrencyId(currencyId);
+        return this.balances.entrySet().stream()
+                .filter(entry -> includeAccount.test(entry.getKey()))
+>>>>>>> Stashed changes
                 .map(entry -> new AccountSnapshot(
                         entry.getKey(),
                         normalizedCurrencyId,
@@ -330,6 +374,48 @@ final class CoffersEconomyService implements CoffersEconomy {
                 .sorted(Comparator.comparing(AccountSnapshot::balance).reversed())
                 .limit(Math.max(limit, 0))
                 .toList();
+<<<<<<< Updated upstream
+=======
+    }
+
+    synchronized LedgerEntry findEntry(final UUID entryId) {
+        for (final List<LedgerEntry> entries : this.history.values()) {
+            for (final LedgerEntry entry : entries) {
+                if (entry.entryId().equals(entryId)) {
+                    return entry;
+                }
+            }
+        }
+        return null;
+    }
+
+    synchronized TransactionResult rollback(final UUID entryId, final TransactionActor actor, final String reason) {
+        final LedgerEntry target = findEntry(entryId);
+        if (target == null) {
+            return TransactionResult.failure(this.defaultCurrencyId, BigDecimal.ZERO, BigDecimal.ZERO, TransactionFailure.NOT_FOUND, "No Coffers ledger entry was found for that id.");
+        }
+        if (hasReversalForReference(target.referenceId())) {
+            return TransactionResult.failure(target.currencyId(), target.amount(), target.resultingBalance(), TransactionFailure.ROLLBACK_UNAVAILABLE, "That Coffers transaction has already been rolled back.");
+        }
+
+        final String rollbackReason = (reason == null || reason.isBlank())
+                ? "Rollback of transaction " + target.entryId()
+                : reason;
+
+        return switch (target.kind()) {
+            case DEPOSIT -> rollbackWithdrawal(target, actor, rollbackReason);
+            case WITHDRAWAL -> rollbackDeposit(target, actor, rollbackReason);
+            case TRANSFER_IN, TRANSFER_OUT -> rollbackTransfer(target, actor, rollbackReason);
+            case SET -> rollbackSet(target, actor, rollbackReason);
+        };
+    }
+
+    synchronized void purgeAccount(final UUID accountId) {
+        this.balances.remove(accountId);
+        this.history.remove(accountId);
+        persistAccountSnapshot(accountId, Map.of());
+        persistHistorySnapshot(accountId, List.of());
+>>>>>>> Stashed changes
     }
 
     @Override
@@ -390,6 +476,13 @@ final class CoffersEconomyService implements CoffersEconomy {
     }
 
     synchronized void replaceSnapshot(final StorageSnapshot snapshot) {
+<<<<<<< Updated upstream
+=======
+        final Set<UUID> previousAccountIds = new LinkedHashSet<>();
+        previousAccountIds.addAll(this.balances.keySet());
+        previousAccountIds.addAll(this.history.keySet());
+
+>>>>>>> Stashed changes
         this.balances.clear();
         this.history.clear();
 
@@ -410,6 +503,19 @@ final class CoffersEconomyService implements CoffersEconomy {
             this.history.put(entry.getKey(), new ArrayList<>(entry.getValue()));
             persistHistory(entry.getKey());
         }
+<<<<<<< Updated upstream
+=======
+
+        final Set<UUID> importedAccountIds = new LinkedHashSet<>();
+        importedAccountIds.addAll(snapshot.balances().keySet());
+        importedAccountIds.addAll(snapshot.history().keySet());
+        previousAccountIds.removeAll(importedAccountIds);
+
+        for (final UUID removedAccountId : previousAccountIds) {
+            persistAccountSnapshot(removedAccountId, Map.of());
+            persistHistorySnapshot(removedAccountId, List.of());
+        }
+>>>>>>> Stashed changes
     }
 
     private LedgerEntry recordEntry(
@@ -418,10 +524,12 @@ final class CoffersEconomyService implements CoffersEconomy {
             final String currencyId,
             final TransactionKind kind,
             final BigDecimal amount,
+            final BigDecimal previousBalance,
             final BigDecimal resultingBalance,
             final TransactionActor actor,
             final String reason,
-            final UUID referenceId
+            final UUID referenceId,
+            final UUID reversalOfReferenceId
     ) {
         final TransactionActor normalizedActor = normalizeActor(actor);
         final LedgerEntry entry = new LedgerEntry(
@@ -432,9 +540,11 @@ final class CoffersEconomyService implements CoffersEconomy {
                 currencyId,
                 kind,
                 amount,
+                previousBalance,
                 resultingBalance,
                 normalizedActor,
                 reason,
+                reversalOfReferenceId,
                 System.currentTimeMillis()
         );
 
@@ -451,6 +561,155 @@ final class CoffersEconomyService implements CoffersEconomy {
             return null;
         }
         return normalize(currencyId, amount);
+    }
+
+    private TransactionResult rollbackWithdrawal(final LedgerEntry target, final TransactionActor actor, final String reason) {
+        final BigDecimal amount = normalize(target.currencyId(), target.amount());
+        final BigDecimal currentBalance = getBalance(target.accountId(), target.currencyId());
+        if (currentBalance.compareTo(amount) < 0) {
+            return TransactionResult.failure(target.currencyId(), amount, currentBalance, TransactionFailure.INSUFFICIENT_FUNDS, "Not enough balance remains to roll back that deposit.");
+        }
+
+        this.balances.get(target.accountId()).put(target.currencyId(), currentBalance.subtract(amount));
+        final LedgerEntry entry = recordEntry(
+                target.accountId(),
+                null,
+                target.currencyId(),
+                TransactionKind.WITHDRAWAL,
+                amount,
+                currentBalance,
+                currentBalance.subtract(amount),
+                actor,
+                reason,
+                UUID.randomUUID(),
+                target.referenceId()
+        );
+        persistAccount(target.accountId());
+        persistHistory(target.accountId());
+        final TransactionResult result = TransactionResult.success(target.currencyId(), amount, currentBalance.subtract(amount), reason, entry);
+        notifyTransaction(TransactionKind.WITHDRAWAL, target.accountId(), null, target.currencyId(), result, actor);
+        return result;
+    }
+
+    private TransactionResult rollbackDeposit(final LedgerEntry target, final TransactionActor actor, final String reason) {
+        final BigDecimal amount = normalize(target.currencyId(), target.amount());
+        final BigDecimal currentBalance = getBalance(target.accountId(), target.currencyId());
+        this.balances.get(target.accountId()).put(target.currencyId(), currentBalance.add(amount));
+        final LedgerEntry entry = recordEntry(
+                target.accountId(),
+                null,
+                target.currencyId(),
+                TransactionKind.DEPOSIT,
+                amount,
+                currentBalance,
+                currentBalance.add(amount),
+                actor,
+                reason,
+                UUID.randomUUID(),
+                target.referenceId()
+        );
+        persistAccount(target.accountId());
+        persistHistory(target.accountId());
+        final TransactionResult result = TransactionResult.success(target.currencyId(), amount, currentBalance.add(amount), reason, entry);
+        notifyTransaction(TransactionKind.DEPOSIT, target.accountId(), null, target.currencyId(), result, actor);
+        return result;
+    }
+
+    private TransactionResult rollbackTransfer(final LedgerEntry target, final TransactionActor actor, final String reason) {
+        if (target.counterpartyAccountId() == null) {
+            return TransactionResult.failure(target.currencyId(), target.amount(), target.resultingBalance(), TransactionFailure.ROLLBACK_UNAVAILABLE, "That transfer cannot be rolled back because the other account is missing.");
+        }
+        final UUID fromAccountId = target.accountId();
+        final UUID toAccountId = target.counterpartyAccountId();
+        final BigDecimal amount = normalize(target.currencyId(), target.amount());
+        final BigDecimal fromBalance = getBalance(fromAccountId, target.currencyId());
+        if (fromBalance.compareTo(amount) < 0) {
+            return TransactionResult.failure(target.currencyId(), amount, fromBalance, TransactionFailure.INSUFFICIENT_FUNDS, "The receiving account no longer has enough balance to roll back this transfer.");
+        }
+
+        final BigDecimal toBalance = getBalance(toAccountId, target.currencyId());
+        final UUID referenceId = UUID.randomUUID();
+        final BigDecimal nextFromBalance = fromBalance.subtract(amount);
+        final BigDecimal nextToBalance = toBalance.add(amount);
+        this.balances.get(fromAccountId).put(target.currencyId(), nextFromBalance);
+        this.balances.get(toAccountId).put(target.currencyId(), nextToBalance);
+
+        final LedgerEntry outEntry = recordEntry(
+                fromAccountId,
+                toAccountId,
+                target.currencyId(),
+                TransactionKind.TRANSFER_OUT,
+                amount,
+                fromBalance,
+                nextFromBalance,
+                actor,
+                reason,
+                referenceId,
+                target.referenceId()
+        );
+        final LedgerEntry inEntry = recordEntry(
+                toAccountId,
+                fromAccountId,
+                target.currencyId(),
+                TransactionKind.TRANSFER_IN,
+                amount,
+                toBalance,
+                nextToBalance,
+                actor,
+                reason,
+                referenceId,
+                target.referenceId()
+        );
+
+        persistAccount(fromAccountId);
+        persistAccount(toAccountId);
+        persistHistory(fromAccountId);
+        persistHistory(toAccountId);
+        final TransactionResult result = TransactionResult.success(target.currencyId(), amount, nextFromBalance, reason, outEntry);
+        notifyTransaction(TransactionKind.TRANSFER_OUT, fromAccountId, toAccountId, target.currencyId(), result, actor);
+        notifyTransaction(
+                TransactionKind.TRANSFER_IN,
+                toAccountId,
+                fromAccountId,
+                target.currencyId(),
+                TransactionResult.success(target.currencyId(), amount, nextToBalance, reason, inEntry),
+                actor
+        );
+        return result;
+    }
+
+    private TransactionResult rollbackSet(final LedgerEntry target, final TransactionActor actor, final String reason) {
+        this.balances.get(target.accountId()).put(target.currencyId(), normalize(target.currencyId(), target.previousBalance()));
+        final BigDecimal zero = BigDecimal.ZERO.setScale(currency(target.currencyId()).orElseThrow().fractionalDigits(), RoundingMode.HALF_UP);
+        final LedgerEntry entry = recordEntry(
+                target.accountId(),
+                null,
+                target.currencyId(),
+                TransactionKind.SET,
+                zero,
+                target.resultingBalance(),
+                normalize(target.currencyId(), target.previousBalance()),
+                actor,
+                reason,
+                UUID.randomUUID(),
+                target.referenceId()
+        );
+        persistAccount(target.accountId());
+        persistHistory(target.accountId());
+        final TransactionResult result = TransactionResult.success(target.currencyId(), zero, normalize(target.currencyId(), target.previousBalance()), reason, entry);
+        notifyTransaction(TransactionKind.SET, target.accountId(), null, target.currencyId(), result, actor);
+        return result;
+    }
+
+    private boolean hasReversalForReference(final UUID referenceId) {
+        for (final List<LedgerEntry> entries : this.history.values()) {
+            for (final LedgerEntry entry : entries) {
+                if (referenceId.equals(entry.reversalOfReferenceId())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private TransactionResult invalidAmount(final UUID accountId, final String currencyId, final BigDecimal attemptedAmount) {
@@ -484,16 +743,24 @@ final class CoffersEconomyService implements CoffersEconomy {
     }
 
     private void persistAccount(final UUID accountId) {
+        persistAccountSnapshot(accountId, this.balances.getOrDefault(accountId, Map.of()));
+    }
+
+    private void persistAccountSnapshot(final UUID accountId, final Map<String, BigDecimal> snapshotBalances) {
         try {
-            this.storage.saveAccount(accountId, new LinkedHashMap<>(this.balances.get(accountId)));
+            this.storage.saveAccount(accountId, new LinkedHashMap<>(snapshotBalances));
         } catch (final Exception exception) {
             throw new IllegalStateException("Failed to persist Coffers account " + accountId, exception);
         }
     }
 
     private void persistHistory(final UUID accountId) {
+        persistHistorySnapshot(accountId, this.history.getOrDefault(accountId, List.of()));
+    }
+
+    private void persistHistorySnapshot(final UUID accountId, final List<LedgerEntry> snapshotHistory) {
         try {
-            this.storage.saveHistory(accountId, List.copyOf(this.history.getOrDefault(accountId, List.of())));
+            this.storage.saveHistory(accountId, List.copyOf(snapshotHistory));
         } catch (final Exception exception) {
             throw new IllegalStateException("Failed to persist Coffers history for " + accountId, exception);
         }
