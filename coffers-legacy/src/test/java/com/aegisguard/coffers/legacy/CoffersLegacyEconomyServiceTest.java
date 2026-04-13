@@ -104,8 +104,6 @@ class CoffersLegacyEconomyServiceTest {
         assertEquals("System", service.recentTransactions(accountId, 10).get(0).getActor().getActorName());
     }
 
-<<<<<<< Updated upstream
-=======
     @Test
     void replaceSnapshotRemovesPersistedAccountsThatAreNoLongerPresent() {
         RecordingLegacyStorage storage = new RecordingLegacyStorage();
@@ -132,7 +130,6 @@ class CoffersLegacyEconomyServiceTest {
         assertEquals(Collections.<LegacyLedgerEntry>emptyList(), storage.savedHistory.get(staleAccountId));
     }
 
->>>>>>> Stashed changes
     private static LegacyCurrencyDefinition currency(final String id) {
         return new LegacyCurrencyDefinition(
                 id,

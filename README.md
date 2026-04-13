@@ -4,9 +4,9 @@
 
 Coffers is a standalone-first economy platform for Minecraft servers.
 
-It is built for server owners who want a full economy plugin they can run on its own, while still keeping Vault available as an optional compatibility layer for older plugins that may still require it.
+It is built for server owners who want a complete economy plugin they can run directly, while still keeping Vault available as an optional compatibility layer for older plugins that may still depend on it.
 
-For plugin developers, Coffers also provides native integration paths that are richer and more modern than the older balance-only model many servers are used to.
+For developers, Coffers also provides native API and SPI integration paths so plugins can target Coffers directly instead of relying only on older balance-only patterns.
 
 ## What Coffers Offers
 
@@ -15,7 +15,12 @@ For plugin developers, Coffers also provides native integration paths that are r
 - YAML, SQLite, and MySQL storage backends
 - configurable currencies and formatting rules
 - transaction history with audit-friendly metadata
-- migration helpers for existing Vault-backed setups
+- rollback tools for correcting bad transactions
+- named backups, exports, imports, and live restore tools
+- restore preview, account-level restore, and validation reports
+- optional personal bank accounts for players
+- automatic safety backups with retention controls
+- startup and shutdown safety copies
 - direct API and SPI modules for plugin developers
 - separate modern and legacy plugin lines
 
@@ -24,39 +29,41 @@ For plugin developers, Coffers also provides native integration paths that are r
 ### For server owners
 
 - `release/Coffers.jar`
-  - the modern plugin line
+  - the modern server jar
   - intended for modern Paper-based server environments
+  - includes PlaceholderAPI support when PlaceholderAPI is installed
 
 - `release/Coffers-Legacy.jar`
-  - the legacy plugin line
+  - the legacy server jar
   - intended for older Bukkit-family server environments
+  - designed for the `1.16.x` to `1.17.x` era and other comparable legacy-oriented setups
 
 ### For plugin developers
 
 - `release/Coffers-API.jar`
   - the main developer API
-  - intended for richer direct integrations with the modern Coffers line
+  - intended for richer direct integrations against the modern Coffers line
 
 - `release/Coffers-SPI.jar`
   - the service-provider interface module
-  - intended for shared native integration contracts and service discovery style hooks
+  - intended for native service discovery style integrations and shared Coffers contracts
 
 In short:
 
 - server owners install `Coffers.jar` or `Coffers-Legacy.jar`
-- developers can additionally use `Coffers-API.jar` or `Coffers-SPI.jar` depending on their integration needs
+- plugin developers can additionally use `Coffers-API.jar` or `Coffers-SPI.jar` depending on how they want to integrate
 
 ## How Vault Fits In
 
 Vault is optional in Coffers.
 
-If Vault is installed and enabled in config, Coffers can register itself as a Vault economy provider so that older plugins can continue working.
+If Vault is installed and enabled in config, Coffers can register itself as a Vault economy provider so older plugins can keep working during a transition period.
 
 If Vault is not installed, Coffers still runs normally as a standalone economy plugin.
 
 This makes Coffers useful for both kinds of server setups:
 
-- servers that want to keep supporting older Vault-based plugins
+- servers that want to keep supporting older Vault-aware plugins
 - servers that want to move toward direct Coffers integrations over time
 
 Vault bridge behavior can be set to:
@@ -64,6 +71,26 @@ Vault bridge behavior can be set to:
 - `auto`
 - `enabled`
 - `disabled`
+
+## Safety And Recovery
+
+Coffers is designed to make economy data easier to trust and easier to recover.
+
+The modern and legacy lines both include:
+
+- persistent balance storage
+- ledger history for auditing and rollback
+- named manual backups
+- named exports and imports
+- live restore support without requiring a restart
+- restore preview reports before applying a full restore
+- targeted account restore for a single player or bank
+- validation reports for missing accounts, bad currency references, and bank inconsistencies
+- optional scheduled safety backups
+- startup and shutdown safety copies
+- automated backup retention rules
+
+This means server owners can treat Coffers as both an economy plugin and a recovery-friendly admin tool.
 
 ## Storage Backends
 
@@ -78,6 +105,19 @@ Coffers supports three storage modes:
 
 Both the modern and legacy lines include these storage options.
 
+## Banks And Player Accounts
+
+Coffers keeps a player's main economy account separate from optional bank accounts.
+
+That means:
+
+- the normal account remains the primary live balance used by most economy actions
+- banks can be used as personal or administrative savings accounts
+- player banks can be auto-created on join if enabled in config
+- backups, exports, imports, and restores preserve both bank registry data and bank balances
+
+Banks are an economy feature, not the only recovery feature. The real recovery layer is the combination of storage, ledger history, rollback tools, and safety snapshots.
+
 ## Modern And Legacy Plugin Lines
 
 Coffers ships in two server-owner plugin lines so each environment has a more appropriate baseline.
@@ -91,18 +131,19 @@ Coffers ships in two server-owner plugin lines so each environment has a more ap
 ### Legacy line
 
 - `Coffers-Legacy.jar`
-- intended for older Bukkit, CraftBukkit, Spigot, and similar legacy-oriented setups
+- intended for older Bukkit, CraftBukkit, Spigot, Paper, and similar legacy-oriented setups
 - keeps the same overall economy direction while targeting older server environments
 
 ## Core Features
 
 Coffers currently includes:
 
-- balance, pay, set, history, top, and currency commands
+- balance, pay, paytoggle, set, history, top, and currency commands
+- transaction rollback tools
+- bank administration commands
 - named backups, exports, imports, and live restore support
-- pay-toggle preferences
-- bank support
-- rollback tools for transaction correction
+- restore preview, targeted restore, and validation reporting
+- automatic scheduled backups with retention controls
 - startup diagnostics and migration reporting
 - configurable chat styling
 - configurable multi-currency support
@@ -140,6 +181,7 @@ Common commands include:
 
 - `/coffers migratevault`
 - `/coffers migratevault <provider>`
+- `/cofferslegacy migratevault`
 - `/cofferslegacy migratevault <provider>`
 
 ## Documentation
@@ -151,8 +193,11 @@ The project wiki is included in this repository:
 - `wiki/Configuration.md`
 - `wiki/Storage-Backends.md`
 - `wiki/Vault-Compatibility.md`
+- `wiki/Commands.md`
+- `wiki/Migration-Guide.md`
 - `wiki/Developer-API.md`
 - `wiki/Developer-Examples.md`
+- `wiki/FAQ.md`
 
 ## Project Layout
 

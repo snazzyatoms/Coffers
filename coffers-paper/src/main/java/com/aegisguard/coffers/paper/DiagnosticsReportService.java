@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -66,6 +67,100 @@ final class DiagnosticsReportService {
         }
         configuration.set("available-providers", availableProviders);
         save(configuration, new File(reportDirectory(), "migration-" + FILE_STAMP.format(LocalDateTime.now()) + ".yml"));
+    }
+
+    File writeBackupReport(
+            final String trigger,
+            final File snapshotFile,
+            final int prunedAutomatedBackups,
+            final int accountCount,
+            final int historyAccountCount,
+            final int disabledPayments,
+            final int bankCount
+    ) {
+        final YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("type", "backup");
+        configuration.set("created-at", System.currentTimeMillis());
+        configuration.set("trigger", trigger);
+        configuration.set("file.name", snapshotFile.getName());
+        configuration.set("file.path", snapshotFile.getAbsolutePath());
+        configuration.set("pruned-automated-backups", prunedAutomatedBackups);
+        configuration.set("account-count", accountCount);
+        configuration.set("history-account-count", historyAccountCount);
+        configuration.set("disabled-payments", disabledPayments);
+        configuration.set("bank-count", bankCount);
+        final File file = new File(reportDirectory(), "backup-" + FILE_STAMP.format(LocalDateTime.now()) + ".yml");
+        save(configuration, file);
+        return file;
+    }
+
+    File writeValidationReport(
+            final String scope,
+            final int balanceAccountCount,
+            final int historyAccountCount,
+            final int disabledPayments,
+            final int bankCount,
+            final List<String> issues
+    ) {
+        final YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("type", "validation");
+        configuration.set("created-at", System.currentTimeMillis());
+        configuration.set("scope", scope);
+        configuration.set("healthy", issues.isEmpty());
+        configuration.set("balance-account-count", balanceAccountCount);
+        configuration.set("history-account-count", historyAccountCount);
+        configuration.set("disabled-payments", disabledPayments);
+        configuration.set("bank-count", bankCount);
+        configuration.set("issues", issues);
+        final File file = new File(reportDirectory(), "validation-" + FILE_STAMP.format(LocalDateTime.now()) + ".yml");
+        save(configuration, file);
+        return file;
+    }
+
+    File writeRestorePreviewReport(
+            final String scope,
+            final String sourceType,
+            final String sourceName,
+            final Map<String, Object> summary,
+            final List<String> notes
+    ) {
+        final YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("type", "restore-preview");
+        configuration.set("created-at", System.currentTimeMillis());
+        configuration.set("scope", scope);
+        configuration.set("source.type", sourceType);
+        configuration.set("source.name", sourceName);
+        for (final Map.Entry<String, Object> entry : summary.entrySet()) {
+            configuration.set("summary." + entry.getKey(), entry.getValue());
+        }
+        configuration.set("notes", notes);
+        final File file = new File(reportDirectory(), "restore-preview-" + FILE_STAMP.format(LocalDateTime.now()) + ".yml");
+        save(configuration, file);
+        return file;
+    }
+
+    File writeAccountRestoreReport(
+            final String target,
+            final String sourceType,
+            final String sourceName,
+            final boolean dryRun,
+            final Map<String, Object> summary,
+            final List<String> notes
+    ) {
+        final YamlConfiguration configuration = new YamlConfiguration();
+        configuration.set("type", "account-restore");
+        configuration.set("created-at", System.currentTimeMillis());
+        configuration.set("target", target);
+        configuration.set("source.type", sourceType);
+        configuration.set("source.name", sourceName);
+        configuration.set("dry-run", dryRun);
+        for (final Map.Entry<String, Object> entry : summary.entrySet()) {
+            configuration.set("summary." + entry.getKey(), entry.getValue());
+        }
+        configuration.set("notes", notes);
+        final File file = new File(reportDirectory(), "account-restore-" + FILE_STAMP.format(LocalDateTime.now()) + ".yml");
+        save(configuration, file);
+        return file;
     }
 
     private File reportDirectory() {

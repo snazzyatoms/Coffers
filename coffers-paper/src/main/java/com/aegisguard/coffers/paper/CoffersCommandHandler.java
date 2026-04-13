@@ -10,10 +10,13 @@ import java.io.File;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -100,6 +103,15 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
             }
             if ("restore".equals(action) || "restorebackup".equals(action)) {
                 return handleRestore(sender, args);
+            }
+            if ("restorepreview".equals(action) || "previewrestore".equals(action)) {
+                return handleRestorePreview(sender, args);
+            }
+            if ("restoreaccount".equals(action)) {
+                return handleRestoreAccount(sender, args);
+            }
+            if ("validate".equals(action) || "audit".equals(action)) {
+                return handleValidate(sender);
             }
         } catch (final IllegalArgumentException exception) {
             messages().send(sender, "<error>Coffers error<secondary>: <primary>%message%", Map.of("message", exception.getMessage()));
@@ -408,6 +420,9 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
         messages().send(sender, "<bullet><primary>PlaceholderAPI<secondary>: <highlight>%state%", Map.of("state", this.plugin.isPlaceholderExpansionActive() ? "active" : "not active"));
         messages().send(sender, "<bullet><primary>Payments blocked<secondary>: <highlight>%count%", Map.of("count", Integer.toString(this.plugin.paymentPreferences().disabledPaymentCount())));
         messages().send(sender, "<bullet><primary>Registered banks<secondary>: <highlight>%count%", Map.of("count", Integer.toString(this.plugin.bankRegistry().bankCount())));
+        messages().send(sender, "<bullet><primary>Automatic backups<secondary>: <highlight>%state%", Map.of("state", this.plugin.autoBackupsEnabled() ? "enabled" : "disabled"));
+        messages().send(sender, "<bullet><primary>Backup interval<secondary>: <highlight>%minutes% minute(s)", Map.of("minutes", Integer.toString(this.plugin.autoBackupIntervalMinutes())));
+        messages().send(sender, "<bullet><primary>Automated retention<secondary>: <highlight>%count%", Map.of("count", Integer.toString(this.plugin.automatedBackupRetentionCount())));
         messages().send(sender, "<bullet><primary>Latest report folder<secondary>: <highlight>plugins/%plugin%/reports", Map.of("plugin", this.plugin.getDataFolder().getName()));
         return true;
     }
@@ -525,10 +540,20 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
         final String backupName = args.length >= 2 ? args[1] : null;
         try {
             final File backupFile = this.plugin.archiveService().backup(
-                    backupName,
-                    this.plugin.economyService().snapshot(),
-                    this.plugin.paymentPreferences().disabledPaymentAccounts(),
-                    this.plugin.bankRegistry().banks()
+                backupName,
+                this.plugin.economyService().snapshot(),
+                this.plugin.paymentPreferences().disabledPaymentAccounts(),
+                this.plugin.bankRegistry().snapshotBanks()
+        );
+            final StorageSnapshot snapshot = this.plugin.economyService().snapshot();
+            this.plugin.diagnostics().writeBackupReport(
+                    "manual",
+                    backupFile,
+                    0,
+                    snapshot.balances().size(),
+                    snapshot.history().size(),
+                    this.plugin.paymentPreferences().disabledPaymentCount(),
+                    this.plugin.bankRegistry().bankCount()
             );
             messages().send(sender, "<success>Created Coffers backup<secondary>: <highlight>%file%", Map.of("file", backupFile.getName()));
         } catch (final Exception exception) {
@@ -546,11 +571,11 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
         final String exportName = args.length >= 2 ? args[1] : null;
         try {
             final File exportFile = this.plugin.archiveService().export(
-                    exportName,
-                    this.plugin.economyService().snapshot(),
-                    this.plugin.paymentPreferences().disabledPaymentAccounts(),
-                    this.plugin.bankRegistry().banks()
-            );
+                exportName,
+                this.plugin.economyService().snapshot(),
+                this.plugin.paymentPreferences().disabledPaymentAccounts(),
+                this.plugin.bankRegistry().snapshotBanks()
+        );
             messages().send(sender, "<success>Exported Coffers data to <highlight>%file%", Map.of("file", exportFile.getName()));
         } catch (final Exception exception) {
             messages().send(sender, "<error>Export failed<secondary>: <primary>%message%", Map.of("message", exception.getMessage()));
@@ -588,18 +613,187 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
 
         final String backupName = args.length >= 2 ? args[1] : "latest";
         try {
-            final ArchiveSnapshot restored = this.plugin.archiveService().restoreBackup(backupName);
+            final ResolvedArchiveSnapshot source = this.plugin.archiveService().resolve(backupName);
+            final ArchiveSnapshot restored = source.snapshot();
             this.plugin.economyService().replaceSnapshot(restored.storageSnapshot());
             this.plugin.paymentPreferences().replaceDisabledPaymentAccounts(restored.disabledPaymentAccounts());
             this.plugin.bankRegistry().replaceBanks(restored.banks());
             messages().send(
                     sender,
-                    "<success>Restored Coffers backup <highlight>%name%<success> without restarting the server.",
-                    Map.of("name", backupName)
+                    "<success>Restored Coffers %type% <highlight>%name%<success> without restarting the server.",
+                    Map.of("type", source.sourceType(), "name", source.sourceName())
             );
         } catch (final Exception exception) {
             messages().send(sender, "<error>Backup restore failed<secondary>: <primary>%message%", Map.of("message", exception.getMessage()));
         }
+        return true;
+    }
+
+    private boolean handleRestorePreview(final CommandSender sender, final String[] args) {
+        if (!sender.hasPermission("coffers.command.restorepreview")) {
+            messages().send(sender, "<error>You do not have permission to preview Coffers restores.");
+            return true;
+        }
+        if (args.length < 2) {
+            messages().send(sender, "<usage>Usage<secondary>: <primary>/coffers restorepreview <backup-name|latest|export:name>");
+            return true;
+        }
+
+        try {
+            final ResolvedArchiveSnapshot source = this.plugin.archiveService().resolve(args[1]);
+            final StorageSnapshot current = this.plugin.economyService().snapshot();
+            final StorageSnapshot incoming = source.snapshot().storageSnapshot();
+
+            final Set<UUID> currentAccounts = accountIds(current);
+            final Set<UUID> incomingAccounts = accountIds(incoming);
+            int changedAccounts = 0;
+            for (final UUID accountId : incomingAccounts) {
+                if (currentAccounts.contains(accountId)
+                        && (!Objects.equals(current.balances().get(accountId), incoming.balances().get(accountId))
+                        || !Objects.equals(current.history().get(accountId), incoming.history().get(accountId)))) {
+                    changedAccounts++;
+                }
+            }
+
+            final Set<String> currentBankKeys = this.plugin.bankRegistry().snapshotBanks().keySet();
+            final Set<String> incomingBankKeys = source.snapshot().banks().keySet();
+            int changedBanks = 0;
+            for (final String bankKey : incomingBankKeys) {
+                if (currentBankKeys.contains(bankKey)
+                        && !Objects.equals(this.plugin.bankRegistry().snapshotBanks().get(bankKey), source.snapshot().banks().get(bankKey))) {
+                    changedBanks++;
+                }
+            }
+
+            final Set<UUID> currentDisabled = this.plugin.paymentPreferences().disabledPaymentAccounts();
+            final Set<UUID> incomingDisabled = source.snapshot().disabledPaymentAccounts();
+            final Set<UUID> disabledDifference = new LinkedHashSet<>(currentDisabled);
+            disabledDifference.removeAll(incomingDisabled);
+            for (final UUID accountId : incomingDisabled) {
+                if (!currentDisabled.contains(accountId)) {
+                    disabledDifference.add(accountId);
+                }
+            }
+
+            final Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("current-account-count", currentAccounts.size());
+            summary.put("incoming-account-count", incomingAccounts.size());
+            summary.put("accounts-added", differenceSize(incomingAccounts, currentAccounts));
+            summary.put("accounts-removed", differenceSize(currentAccounts, incomingAccounts));
+            summary.put("accounts-changed", changedAccounts);
+            summary.put("current-bank-count", currentBankKeys.size());
+            summary.put("incoming-bank-count", incomingBankKeys.size());
+            summary.put("banks-added", differenceSize(incomingBankKeys, currentBankKeys));
+            summary.put("banks-removed", differenceSize(currentBankKeys, incomingBankKeys));
+            summary.put("banks-changed", changedBanks);
+            summary.put("disabled-payment-changes", disabledDifference.size());
+            final File reportFile = this.plugin.diagnostics().writeRestorePreviewReport(
+                    "full-restore",
+                    source.sourceType(),
+                    source.sourceName(),
+                    summary,
+                    List.of("Preview only. No Coffers data was changed.")
+            );
+            messages().send(sender, "<accent>Coffers restore preview for <highlight>%type%:%name%<accent>:", Map.of("type", source.sourceType(), "name", source.sourceName()));
+            messages().send(sender, "<bullet><primary>Accounts added<secondary>: <highlight>%count%", Map.of("count", summary.get("accounts-added").toString()));
+            messages().send(sender, "<bullet><primary>Accounts changed<secondary>: <highlight>%count%", Map.of("count", summary.get("accounts-changed").toString()));
+            messages().send(sender, "<bullet><primary>Accounts removed<secondary>: <highlight>%count%", Map.of("count", summary.get("accounts-removed").toString()));
+            messages().send(sender, "<bullet><primary>Banks changed<secondary>: <highlight>%count%", Map.of("count", summary.get("banks-changed").toString()));
+            messages().send(sender, "<bullet><primary>Payment preference changes<secondary>: <highlight>%count%", Map.of("count", summary.get("disabled-payment-changes").toString()));
+            messages().send(sender, "<bullet><primary>Preview report<secondary>: <highlight>%file%", Map.of("file", reportFile.getName()));
+        } catch (final Exception exception) {
+            messages().send(sender, "<error>Restore preview failed<secondary>: <primary>%message%", Map.of("message", exception.getMessage()));
+        }
+        return true;
+    }
+
+    private boolean handleRestoreAccount(final CommandSender sender, final String[] args) {
+        if (!sender.hasPermission("coffers.command.restoreaccount")) {
+            messages().send(sender, "<error>You do not have permission to restore individual Coffers accounts.");
+            return true;
+        }
+        if (args.length < 3) {
+            messages().send(sender, "<usage>Usage<secondary>: <primary>/coffers restoreaccount <backup-name|latest|export:name> <player|uuid|bank:name> [dryrun]");
+            return true;
+        }
+
+        final boolean dryRun = args.length >= 4 && "dryrun".equalsIgnoreCase(args[3]);
+        try {
+            final ResolvedArchiveSnapshot source = this.plugin.archiveService().resolve(args[1]);
+            final String targetSpec = args[2];
+            if (targetSpec.toLowerCase(Locale.ROOT).startsWith("bank:")) {
+                return handleRestoreBankAccount(sender, source, targetSpec.substring("bank:".length()), dryRun);
+            }
+            return handleRestorePlayerAccount(sender, source, targetSpec, dryRun);
+        } catch (final Exception exception) {
+            messages().send(sender, "<error>Account restore failed<secondary>: <primary>%message%", Map.of("message", exception.getMessage()));
+            return true;
+        }
+    }
+
+    private boolean handleValidate(final CommandSender sender) {
+        if (!sender.hasPermission("coffers.command.validate")) {
+            messages().send(sender, "<error>You do not have permission to validate Coffers data.");
+            return true;
+        }
+
+        final StorageSnapshot snapshot = this.plugin.economyService().snapshot();
+        final Set<UUID> accountIds = accountIds(snapshot);
+        final Map<String, String> bankSnapshot = this.plugin.bankRegistry().snapshotBanks();
+        final List<String> issues = new ArrayList<>();
+        final Set<String> validCurrencies = new LinkedHashSet<>(currencyIds());
+        final Set<String> seenBankDisplays = new LinkedHashSet<>();
+
+        for (final Map.Entry<UUID, Map<String, BigDecimal>> entry : snapshot.balances().entrySet()) {
+            for (final Map.Entry<String, BigDecimal> balance : entry.getValue().entrySet()) {
+                if (!validCurrencies.contains(balance.getKey())) {
+                    issues.add("Account " + entry.getKey() + " contains unknown currency id '" + balance.getKey() + "'.");
+                }
+                if (balance.getValue() != null && balance.getValue().signum() < 0) {
+                    issues.add("Account " + entry.getKey() + " has a negative balance in currency '" + balance.getKey() + "'.");
+                }
+            }
+        }
+
+        for (final Map.Entry<UUID, List<LedgerEntry>> entry : snapshot.history().entrySet()) {
+            if (!snapshot.balances().containsKey(entry.getKey())) {
+                issues.add("History exists for account " + entry.getKey() + " but no live balance snapshot is present.");
+            }
+            for (final LedgerEntry ledgerEntry : entry.getValue()) {
+                if (!validCurrencies.contains(ledgerEntry.currencyId())) {
+                    issues.add("Ledger entry " + ledgerEntry.entryId() + " uses unknown currency id '" + ledgerEntry.currencyId() + "'.");
+                }
+                if (ledgerEntry.resultingBalance().signum() < 0) {
+                    issues.add("Ledger entry " + ledgerEntry.entryId() + " results in a negative balance.");
+                }
+            }
+        }
+
+        for (final Map.Entry<String, String> bank : bankSnapshot.entrySet()) {
+            final UUID bankAccountId = this.plugin.bankRegistry().bankAccountIdForKey(bank.getKey());
+            if (!accountIds.contains(bankAccountId)) {
+                issues.add("Bank '" + bank.getValue() + "' is registered but its backing account snapshot is missing.");
+            }
+            final String normalizedDisplay = bank.getValue().toLowerCase(Locale.ROOT);
+            if (!seenBankDisplays.add(normalizedDisplay)) {
+                issues.add("Duplicate bank display name detected: '" + bank.getValue() + "'.");
+            }
+        }
+
+        final File reportFile = this.plugin.diagnostics().writeValidationReport(
+                "runtime",
+                snapshot.balances().size(),
+                snapshot.history().size(),
+                this.plugin.paymentPreferences().disabledPaymentCount(),
+                bankSnapshot.size(),
+                issues
+        );
+        if (issues.isEmpty()) {
+            messages().send(sender, "<success>Coffers validation completed without issues.");
+        } else {
+            messages().send(sender, "<warning>Coffers validation found <highlight>%count%<warning> issue(s).", Map.of("count", Integer.toString(issues.size())));
+        }
+        messages().send(sender, "<bullet><primary>Validation report<secondary>: <highlight>%file%", Map.of("file", reportFile.getName()));
         return true;
     }
 
@@ -814,6 +1008,9 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
         messages().send(sender, "<bullet><usage>/coffers export [name]");
         messages().send(sender, "<bullet><usage>/coffers import <name>");
         messages().send(sender, "<bullet><usage>/coffers restore [backup-name|latest]");
+        messages().send(sender, "<bullet><usage>/coffers restorepreview <backup-name|latest|export:name>");
+        messages().send(sender, "<bullet><usage>/coffers restoreaccount <source> <player|uuid|bank:name> [dryrun]");
+        messages().send(sender, "<bullet><usage>/coffers validate");
     }
 
     @Override
@@ -869,6 +1066,17 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
                 completions.add("restore");
                 completions.add("restorebackup");
             }
+            if (sender.hasPermission("coffers.command.restorepreview")) {
+                completions.add("restorepreview");
+                completions.add("previewrestore");
+            }
+            if (sender.hasPermission("coffers.command.restoreaccount")) {
+                completions.add("restoreaccount");
+            }
+            if (sender.hasPermission("coffers.command.validate")) {
+                completions.add("validate");
+                completions.add("audit");
+            }
             return filter(completions, args[0]);
         }
 
@@ -900,18 +1108,36 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
         }
 
         if (args.length == 2 && "import".equalsIgnoreCase(args[0])) {
-            return filter(exportNames(), args[1]);
+            return filter(this.plugin.archiveService().exportNames(), args[1]);
         }
 
         if (args.length == 2 && "backup".equalsIgnoreCase(args[0])) {
             return List.of();
         }
 
-        if (args.length == 2 && ("restore".equalsIgnoreCase(args[0]) || "restorebackup".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2 && ("restore".equalsIgnoreCase(args[0]) || "restorebackup".equalsIgnoreCase(args[0]) || "restorepreview".equalsIgnoreCase(args[0]) || "previewrestore".equalsIgnoreCase(args[0]) || "restoreaccount".equalsIgnoreCase(args[0]))) {
             final List<String> suggestions = new ArrayList<>();
             suggestions.add("latest");
-            suggestions.addAll(backupNames());
+            suggestions.addAll(this.plugin.archiveService().backupNames());
+            for (final String exportName : this.plugin.archiveService().exportNames()) {
+                suggestions.add("export:" + exportName);
+            }
             return filter(suggestions, args[1]);
+        }
+
+        if (args.length == 3 && "restoreaccount".equalsIgnoreCase(args[0])) {
+            final List<String> suggestions = new ArrayList<>();
+            for (final Player online : this.plugin.getServer().getOnlinePlayers()) {
+                suggestions.add(online.getName());
+            }
+            for (final String bankName : this.plugin.bankRegistry().banks()) {
+                suggestions.add("bank:" + bankName);
+            }
+            return filter(suggestions, args[2]);
+        }
+
+        if (args.length == 4 && "restoreaccount".equalsIgnoreCase(args[0])) {
+            return filter(List.of("dryrun"), args[3]);
         }
 
         if (args.length == 2 && "bank".equalsIgnoreCase(args[0])) {
@@ -933,38 +1159,6 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
         final String needle = token.toLowerCase(Locale.ROOT);
         return candidates.stream()
                 .filter(candidate -> candidate.toLowerCase(Locale.ROOT).startsWith(needle))
-                .toList();
-    }
-
-    private List<String> exportNames() {
-        final File exportDirectory = new File(this.plugin.getDataFolder(), "exports");
-        if (!exportDirectory.exists()) {
-            return List.of();
-        }
-        final File[] files = exportDirectory.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null) {
-            return List.of();
-        }
-        return java.util.Arrays.stream(files)
-                .map(File::getName)
-                .map(name -> name.endsWith(".yml") ? name.substring(0, name.length() - 4) : name)
-                .sorted()
-                .toList();
-    }
-
-    private List<String> backupNames() {
-        final File backupDirectory = new File(this.plugin.getDataFolder(), "backups");
-        if (!backupDirectory.exists()) {
-            return List.of();
-        }
-        final File[] files = backupDirectory.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null) {
-            return List.of();
-        }
-        return java.util.Arrays.stream(files)
-                .map(File::getName)
-                .map(name -> name.endsWith(".yml") ? name.substring(0, name.length() - 4) : name)
-                .sorted()
                 .toList();
     }
 
@@ -1048,6 +1242,151 @@ final class CoffersCommandHandler implements CommandExecutor, TabCompleter {
 
     private boolean isSelfTarget(final CommandSender sender, final OfflinePlayer target) {
         return sender instanceof Player player && player.getUniqueId().equals(target.getUniqueId());
+    }
+
+    private boolean handleRestorePlayerAccount(
+            final CommandSender sender,
+            final ResolvedArchiveSnapshot source,
+            final String playerToken,
+            final boolean dryRun
+    ) {
+        final OfflinePlayer player = resolveOfflinePlayer(playerToken);
+        final UUID accountId = player.getUniqueId();
+        final StorageSnapshot sourceSnapshot = source.snapshot().storageSnapshot();
+        if (!containsAccount(sourceSnapshot, accountId)) {
+            messages().send(sender, "<warning>No Coffers account data for <highlight>%player%<warning> exists in that %type%.", Map.of("player", displayName(player), "type", source.sourceType()));
+            return true;
+        }
+
+        final StorageSnapshot currentSnapshot = this.plugin.economyService().snapshot();
+        final boolean targetBlocksPaymentsNow = !this.plugin.paymentPreferences().allowsPayments(accountId);
+        final boolean targetBlocksPaymentsInSource = source.snapshot().disabledPaymentAccounts().contains(accountId);
+        final int balanceCurrencies = sourceSnapshot.balances().getOrDefault(accountId, Map.of()).size();
+        final int historyEntries = sourceSnapshot.history().getOrDefault(accountId, List.of()).size();
+        final Map<String, Object> summary = Map.of(
+                "balance-currencies", balanceCurrencies,
+                "history-entries", historyEntries,
+                "currently-exists", containsAccount(currentSnapshot, accountId),
+                "payment-preference-changed", targetBlocksPaymentsNow != targetBlocksPaymentsInSource
+        );
+        final File reportFile = this.plugin.diagnostics().writeAccountRestoreReport(
+                displayName(player),
+                source.sourceType(),
+                source.sourceName(),
+                dryRun,
+                summary,
+                List.of(dryRun ? "Preview only. No Coffers data was changed." : "Applied a targeted Coffers account restore.")
+        );
+
+        if (!dryRun) {
+            this.plugin.economyService().restoreAccountFromSnapshot(accountId, sourceSnapshot);
+            this.plugin.paymentPreferences().setAllowsPayments(accountId, !targetBlocksPaymentsInSource);
+        }
+
+        messages().send(sender, dryRun
+                ? "<accent>Coffers restore preview prepared for <highlight>%player%<accent>."
+                : "<success>Restored Coffers account data for <highlight>%player%<success>."
+                , Map.of("player", displayName(player)));
+        messages().send(sender, "<bullet><primary>Balance entries<secondary>: <highlight>%count%", Map.of("count", Integer.toString(balanceCurrencies)));
+        messages().send(sender, "<bullet><primary>History entries<secondary>: <highlight>%count%", Map.of("count", Integer.toString(historyEntries)));
+        messages().send(sender, "<bullet><primary>Report<secondary>: <highlight>%file%", Map.of("file", reportFile.getName()));
+        return true;
+    }
+
+    private boolean handleRestoreBankAccount(
+            final CommandSender sender,
+            final ResolvedArchiveSnapshot source,
+            final String bankToken,
+            final boolean dryRun
+    ) {
+        final Map.Entry<String, String> sourceBank = findSourceBank(source.snapshot().banks(), bankToken);
+        if (sourceBank == null) {
+            messages().send(sender, "<warning>No Coffers bank named <highlight>%bank%<warning> exists in that %type%.", Map.of("bank", bankToken, "type", source.sourceType()));
+            return true;
+        }
+
+        final String currentKey = this.plugin.bankRegistry().bankKey(sourceBank.getValue());
+        if (currentKey != null && !currentKey.equals(sourceBank.getKey())) {
+            messages().send(sender, "<error>A different live bank already uses the name <highlight>%bank%<error>. Rename or remove it before restoring this archived bank.", Map.of("bank", sourceBank.getValue()));
+            return true;
+        }
+
+        final UUID bankAccountId = this.plugin.bankRegistry().bankAccountIdForKey(sourceBank.getKey());
+        final StorageSnapshot sourceSnapshot = source.snapshot().storageSnapshot();
+        if (!containsAccount(sourceSnapshot, bankAccountId)) {
+            messages().send(sender, "<warning>The archived bank <highlight>%bank%<warning> does not contain account data to restore.", Map.of("bank", sourceBank.getValue()));
+            return true;
+        }
+
+        final int balanceCurrencies = sourceSnapshot.balances().getOrDefault(bankAccountId, Map.of()).size();
+        final int historyEntries = sourceSnapshot.history().getOrDefault(bankAccountId, List.of()).size();
+        final Map<String, Object> summary = Map.of(
+                "bank-key", sourceBank.getKey(),
+                "balance-currencies", balanceCurrencies,
+                "history-entries", historyEntries,
+                "currently-registered", currentKey != null
+        );
+        final File reportFile = this.plugin.diagnostics().writeAccountRestoreReport(
+                "bank:" + sourceBank.getValue(),
+                source.sourceType(),
+                source.sourceName(),
+                dryRun,
+                summary,
+                List.of(dryRun ? "Preview only. No Coffers data was changed." : "Applied a targeted Coffers bank restore.")
+        );
+
+        if (!dryRun) {
+            this.plugin.bankRegistry().ensureBank(sourceBank.getKey(), sourceBank.getValue());
+            this.plugin.economyService().restoreAccountFromSnapshot(bankAccountId, sourceSnapshot);
+        }
+
+        messages().send(sender, dryRun
+                ? "<accent>Coffers bank restore preview prepared for <highlight>%bank%<accent>."
+                : "<success>Restored Coffers bank data for <highlight>%bank%<success>."
+                , Map.of("bank", sourceBank.getValue()));
+        messages().send(sender, "<bullet><primary>Balance entries<secondary>: <highlight>%count%", Map.of("count", Integer.toString(balanceCurrencies)));
+        messages().send(sender, "<bullet><primary>History entries<secondary>: <highlight>%count%", Map.of("count", Integer.toString(historyEntries)));
+        messages().send(sender, "<bullet><primary>Report<secondary>: <highlight>%file%", Map.of("file", reportFile.getName()));
+        return true;
+    }
+
+    private OfflinePlayer resolveOfflinePlayer(final String token) {
+        try {
+            return Bukkit.getOfflinePlayer(UUID.fromString(token));
+        } catch (final IllegalArgumentException ignored) {
+            return Bukkit.getOfflinePlayer(token);
+        }
+    }
+
+    private boolean containsAccount(final StorageSnapshot snapshot, final UUID accountId) {
+        return snapshot.balances().containsKey(accountId) || snapshot.history().containsKey(accountId);
+    }
+
+    private Set<UUID> accountIds(final StorageSnapshot snapshot) {
+        final Set<UUID> accountIds = new LinkedHashSet<>();
+        accountIds.addAll(snapshot.balances().keySet());
+        accountIds.addAll(snapshot.history().keySet());
+        return accountIds;
+    }
+
+    private int differenceSize(final Set<?> left, final Set<?> right) {
+        int count = 0;
+        for (final Object entry : left) {
+            if (!right.contains(entry)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Map.Entry<String, String> findSourceBank(final Map<String, String> archivedBanks, final String token) {
+        final String needle = token.toLowerCase(Locale.ROOT);
+        for (final Map.Entry<String, String> entry : archivedBanks.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(needle) || entry.getValue().equalsIgnoreCase(token)) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     private record HistoryOptions(int page, int limit, String currencyId, TransactionKind kind) {

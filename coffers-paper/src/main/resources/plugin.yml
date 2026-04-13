@@ -8,11 +8,7 @@ softdepend: [Vault, PlaceholderAPI]
 commands:
   coffers:
     description: Core Coffers economy commands.
-<<<<<<< Updated upstream
-    usage: /coffers <balance|pay|set|history|top|currencies|migratevault|reload|backup|export|import>
-=======
-    usage: /coffers <balance|pay|paytoggle|set|history|rollback|bank|status|top|currencies|migratevault|reload|backup [name]|export [name]|import <name>|restore [backup-name|latest]>
->>>>>>> Stashed changes
+    usage: /coffers <balance|pay|paytoggle|set|history|rollback|bank|status|top|currencies|migratevault|reload|backup [name]|export [name]|import <name>|restore [source]|restorepreview <source>|restoreaccount <source> <target> [dryrun]|validate>
     permission: coffers.command.use
   baltop:
     description: View the top Coffers balances.
@@ -43,11 +39,8 @@ permissions:
     default: op
   coffers.command.history.others:
     default: op
-<<<<<<< Updated upstream
-=======
   coffers.command.status:
     default: true
->>>>>>> Stashed changes
   coffers.command.set:
     default: op
   coffers.command.rollback:
@@ -70,14 +63,15 @@ permissions:
     default: op
   coffers.command.backup:
     default: op
-<<<<<<< Updated upstream
-  coffers.command.import:
-    default: op
-=======
   coffers.command.export:
     default: op
   coffers.command.import:
     default: op
   coffers.command.restore:
     default: op
->>>>>>> Stashed changes
+  coffers.command.restorepreview:
+    default: op
+  coffers.command.restoreaccount:
+    default: op
+  coffers.command.validate:
+    default: op

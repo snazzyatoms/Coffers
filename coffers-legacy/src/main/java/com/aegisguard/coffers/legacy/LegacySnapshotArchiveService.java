@@ -30,7 +30,7 @@ final class LegacySnapshotArchiveService {
         this.dataFolder = dataFolder;
     }
 
-    File backup(final String backupName, final LegacyStorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Set<String> banks) throws IOException {
+    File backup(final String backupName, final LegacyStorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Map<String, String> banks) throws IOException {
         File backupDirectory = backupDirectory();
         if (!backupDirectory.exists() && !backupDirectory.mkdirs()) {
             throw new IOException("Could not create backups directory.");
@@ -39,7 +39,7 @@ final class LegacySnapshotArchiveService {
         return writeSnapshot(snapshot, disabledPaymentAccounts, banks, new File(backupDirectory, safeName + ".yml"));
     }
 
-    File export(final String exportName, final LegacyStorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Set<String> banks) throws IOException {
+    File export(final String exportName, final LegacyStorageSnapshot snapshot, final Set<UUID> disabledPaymentAccounts, final Map<String, String> banks) throws IOException {
         File exportDirectory = exportDirectory();
         if (!exportDirectory.exists() && !exportDirectory.mkdirs()) {
             throw new IOException("Could not create exports directory.");
@@ -74,6 +74,73 @@ final class LegacySnapshotArchiveService {
         return readSnapshot(backupFile);
     }
 
+    LegacyResolvedArchiveSnapshot resolve(final String sourceToken) throws IOException {
+        String requested = sourceToken == null ? "" : sourceToken.trim();
+        if (requested.isEmpty() || "latest".equalsIgnoreCase(requested)) {
+            File file = latestBackupFile();
+            if (file == null) {
+                throw new IOException("No Coffers Legacy backups were found.");
+            }
+            return new LegacyResolvedArchiveSnapshot("backup", fileStem(file), file, readSnapshot(file));
+        }
+
+        int separatorIndex = requested.indexOf(':');
+        if (separatorIndex > 0) {
+            String sourceType = requested.substring(0, separatorIndex).toLowerCase(java.util.Locale.ROOT);
+            String sourceName = requested.substring(separatorIndex + 1);
+            if ("export".equals(sourceType)) {
+                File file = exportFile(sourceName);
+                return new LegacyResolvedArchiveSnapshot("export", fileStem(file), file, readSnapshot(file));
+            }
+            if ("backup".equals(sourceType)) {
+                File file = backupFile(sourceName);
+                return new LegacyResolvedArchiveSnapshot("backup", fileStem(file), file, readSnapshot(file));
+            }
+        }
+
+        File file = backupFile(requested);
+        return new LegacyResolvedArchiveSnapshot("backup", fileStem(file), file, readSnapshot(file));
+    }
+
+    List<String> backupNames() {
+        return listNames(backupDirectory());
+    }
+
+    List<String> exportNames() {
+        return listNames(exportDirectory());
+    }
+
+    int pruneAutomatedBackups(final int keepCount, final List<String> automatedPrefixes) {
+        if (keepCount < 0) {
+            return 0;
+        }
+
+        File[] files = backupDirectory().listFiles((directory, name) -> name.endsWith(".yml"));
+        if (files == null || files.length <= keepCount) {
+            return 0;
+        }
+
+        List<File> automated = new ArrayList<File>();
+        for (File file : files) {
+            String lowerName = file.getName().toLowerCase(java.util.Locale.ROOT);
+            for (String prefix : automatedPrefixes) {
+                if (lowerName.startsWith(prefix.toLowerCase(java.util.Locale.ROOT))) {
+                    automated.add(file);
+                    break;
+                }
+            }
+        }
+
+        automated.sort((left, right) -> Long.compare(right.lastModified(), left.lastModified()));
+        int pruned = 0;
+        for (int index = keepCount; index < automated.size(); index++) {
+            if (automated.get(index).delete()) {
+                pruned++;
+            }
+        }
+        return pruned;
+    }
+
     private File latestBackupFile() {
         File[] files = backupDirectory().listFiles();
         if (files == null || files.length == 0) {
@@ -92,6 +159,24 @@ final class LegacySnapshotArchiveService {
         return newest;
     }
 
+    private File backupFile(final String backupName) throws IOException {
+        String safeName = backupName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        File file = new File(backupDirectory(), safeName.endsWith(".yml") ? safeName : safeName + ".yml");
+        if (!file.exists()) {
+            throw new IOException("Backup file not found: " + file.getName());
+        }
+        return file;
+    }
+
+    private File exportFile(final String exportName) throws IOException {
+        String safeName = exportName.replaceAll("[^a-zA-Z0-9._-]", "_");
+        File file = new File(exportDirectory(), safeName.endsWith(".yml") ? safeName : safeName + ".yml");
+        if (!file.exists()) {
+            throw new IOException("Export file not found: " + file.getName());
+        }
+        return file;
+    }
+
     private File backupDirectory() {
         return new File(this.dataFolder, "backups");
     }
@@ -107,10 +192,31 @@ final class LegacySnapshotArchiveService {
         return requestedName.replaceAll("[^a-zA-Z0-9._-]", "_");
     }
 
+    private List<String> listNames(final File directory) {
+        if (!directory.exists()) {
+            return java.util.Collections.emptyList();
+        }
+        File[] files = directory.listFiles((currentDirectory, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return java.util.Collections.emptyList();
+        }
+        List<String> names = new ArrayList<String>();
+        for (File file : files) {
+            names.add(fileStem(file));
+        }
+        java.util.Collections.sort(names);
+        return names;
+    }
+
+    private String fileStem(final File file) {
+        String name = file.getName();
+        return name.endsWith(".yml") ? name.substring(0, name.length() - 4) : name;
+    }
+
     private File writeSnapshot(
             final LegacyStorageSnapshot snapshot,
             final Set<UUID> disabledPaymentAccounts,
-            final Set<String> banks,
+            final Map<String, String> banks,
             final File destination
     ) throws IOException {
         YamlConfiguration configuration = new YamlConfiguration();
@@ -119,7 +225,9 @@ final class LegacySnapshotArchiveService {
         for (UUID accountId : disabledPaymentAccounts) {
             configuration.set("preferences.disabled-payments." + accountId.toString(), Boolean.TRUE);
         }
-        configuration.set("banks", new ArrayList<String>(banks));
+        for (Map.Entry<String, String> bank : banks.entrySet()) {
+            configuration.set("banks." + bank.getKey() + ".name", bank.getValue());
+        }
 
         for (Map.Entry<UUID, Map<String, BigDecimal>> entry : snapshot.getBalances().entrySet()) {
             String accountPath = "balances." + entry.getKey().toString();
@@ -160,7 +268,7 @@ final class LegacySnapshotArchiveService {
         Map<UUID, Map<String, BigDecimal>> balances = new LinkedHashMap<UUID, Map<String, BigDecimal>>();
         Map<UUID, List<LegacyLedgerEntry>> history = new LinkedHashMap<UUID, List<LegacyLedgerEntry>>();
         Set<UUID> disabledPaymentAccounts = new LinkedHashSet<UUID>();
-        Set<String> banks = new LinkedHashSet<String>();
+        Map<String, String> banks = new LinkedHashMap<String, String>();
 
         ConfigurationSection balancesSection = configuration.getConfigurationSection("balances");
         if (balancesSection != null) {
@@ -235,11 +343,22 @@ final class LegacySnapshotArchiveService {
             }
         }
 
-        List<?> storedBanks = configuration.getList("banks");
-        if (storedBanks != null) {
-            for (Object value : storedBanks) {
-                if (value != null && !value.toString().trim().isEmpty()) {
-                    banks.add(value.toString());
+        ConfigurationSection banksSection = configuration.getConfigurationSection("banks");
+        if (banksSection != null) {
+            for (String key : banksSection.getKeys(false)) {
+                String name = banksSection.getString(key + ".name", key);
+                if (name != null && !name.trim().isEmpty()) {
+                    banks.put(key.toLowerCase(java.util.Locale.ROOT), name);
+                }
+            }
+        } else {
+            List<?> storedBanks = configuration.getList("banks");
+            if (storedBanks != null) {
+                for (Object value : storedBanks) {
+                    if (value != null && !value.toString().trim().isEmpty()) {
+                        String name = value.toString().trim();
+                        banks.put(name.toLowerCase(java.util.Locale.ROOT), name);
+                    }
                 }
             }
         }

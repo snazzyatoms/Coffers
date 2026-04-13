@@ -31,14 +31,14 @@ class SnapshotArchiveServiceTest {
         );
 
         try {
-            final var backupFile = service.backup("spring-restore-point", snapshot, Set.of(disabledPaymentAccount), Set.of("TownBank"));
+            final var backupFile = service.backup("spring-restore-point", snapshot, Set.of(disabledPaymentAccount), Map.of("townbank", "TownBank"));
             assertEquals("spring-restore-point.yml", backupFile.getName());
 
             final ArchiveSnapshot restored = service.restoreBackup("spring-restore-point");
             assertEquals(new BigDecimal("12.50"), restored.storageSnapshot().balances().get(accountId).get("coins"));
             assertEquals(1, restored.storageSnapshot().history().get(accountId).size());
             assertTrue(restored.disabledPaymentAccounts().contains(disabledPaymentAccount));
-            assertTrue(restored.banks().contains("TownBank"));
+            assertEquals("TownBank", restored.banks().get("townbank"));
         } finally {
             deleteRecursively(dataFolder);
         }
@@ -56,14 +56,14 @@ class SnapshotArchiveServiceTest {
         );
 
         try {
-            service.export("manual-export", snapshot, Set.of(disabledPaymentAccount), Set.of("StaffVault"));
+            service.export("manual-export", snapshot, Set.of(disabledPaymentAccount), Map.of("staffvault", "StaffVault"));
 
             final ArchiveSnapshot imported = service.importSnapshot("manual-export");
             assertNotNull(imported);
             assertEquals(new BigDecimal("5.00"), imported.storageSnapshot().balances().get(accountId).get("coins"));
             assertEquals(1, imported.storageSnapshot().history().get(accountId).size());
             assertTrue(imported.disabledPaymentAccounts().contains(disabledPaymentAccount));
-            assertTrue(imported.banks().contains("StaffVault"));
+            assertEquals("StaffVault", imported.banks().get("staffvault"));
         } finally {
             deleteRecursively(dataFolder);
         }
@@ -85,13 +85,13 @@ class SnapshotArchiveServiceTest {
         );
 
         try {
-            final var firstBackup = service.backup("first-pass", firstSnapshot, Set.of(), Set.of("TownBank"));
-            final var secondBackup = service.backup("second-pass", secondSnapshot, Set.of(), Set.of("TownBank", "VaultBank"));
+            final var firstBackup = service.backup("first-pass", firstSnapshot, Set.of(), Map.of("townbank", "TownBank"));
+            final var secondBackup = service.backup("second-pass", secondSnapshot, Set.of(), Map.of("townbank", "TownBank", "vaultbank", "VaultBank"));
             assertTrue(secondBackup.setLastModified(firstBackup.lastModified() + 10_000L));
 
             final ArchiveSnapshot restored = service.restoreBackup("latest");
             assertEquals(new BigDecimal("9.00"), restored.storageSnapshot().balances().get(accountId).get("coins"));
-            assertTrue(restored.banks().contains("VaultBank"));
+            assertEquals("VaultBank", restored.banks().get("vaultbank"));
         } finally {
             deleteRecursively(dataFolder);
         }

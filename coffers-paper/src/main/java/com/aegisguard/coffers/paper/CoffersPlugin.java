@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Properties;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -23,22 +24,12 @@ public final class CoffersPlugin extends JavaPlugin {
     private MigrationGateway migrationService = new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
     private SnapshotArchiveService archiveService;
     private CoffersPlaceholderExpansion placeholderExpansion;
-<<<<<<< Updated upstream
-
-    @Override
-    public void onEnable() {
-        saveDefaultConfig();
-        this.archiveService = new SnapshotArchiveService(this);
-
-        final PluginCommand command = Objects.requireNonNull(getCommand("coffers"), "coffers command missing from plugin.yml");
-        final CoffersCommand executor = new CoffersCommand(this);
-        command.setExecutor(executor);
-        command.setTabCompleter(executor);
-=======
     private PaymentPreferenceService paymentPreferences;
     private BankRegistryService bankRegistry;
     private DiagnosticsReportService diagnostics;
     private CoffersMessagePalette messages;
+    private CoffersPlayerAccountListener playerAccountListener;
+    private SafetyBackupService safetyBackups;
 
     @Override
     public void onEnable() {
@@ -50,12 +41,14 @@ public final class CoffersPlugin extends JavaPlugin {
         this.archiveService = new SnapshotArchiveService(this);
         this.diagnostics = new DiagnosticsReportService(this);
         this.messages = CoffersMessagePalette.fromConfig(getConfig());
+        this.playerAccountListener = new CoffersPlayerAccountListener(this);
+        this.safetyBackups = new SafetyBackupService(this);
+        getServer().getPluginManager().registerEvents(this.playerAccountListener, this);
 
         final CoffersCommandHandler executor = new CoffersCommandHandler(this);
         registerCommand("coffers", executor);
         registerCommand("baltop", executor);
         registerCommand("paytoggle", executor);
->>>>>>> Stashed changes
 
         if (!loadRuntime(false)) {
             getServer().getPluginManager().disablePlugin(this);
@@ -67,6 +60,9 @@ public final class CoffersPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (this.safetyBackups != null) {
+            this.safetyBackups.runShutdownBackupIfEnabled();
+        }
         shutdownRuntime();
     }
 
@@ -82,8 +78,6 @@ public final class CoffersPlugin extends JavaPlugin {
         return this.migrationService;
     }
 
-<<<<<<< Updated upstream
-=======
     PaymentPreferenceService paymentPreferences() {
         return this.paymentPreferences;
     }
@@ -92,15 +86,10 @@ public final class CoffersPlugin extends JavaPlugin {
         return this.messages;
     }
 
->>>>>>> Stashed changes
     SnapshotArchiveService archiveService() {
         return this.archiveService;
     }
 
-<<<<<<< Updated upstream
-    boolean reloadRuntime() {
-        reloadConfig();
-=======
     BankRegistryService bankRegistry() {
         return this.bankRegistry;
     }
@@ -109,10 +98,29 @@ public final class CoffersPlugin extends JavaPlugin {
         return this.diagnostics;
     }
 
+    boolean autoBackupsEnabled() {
+        return getConfig().getBoolean("safety.auto-backups.enabled", true);
+    }
+
+    int autoBackupIntervalMinutes() {
+        return getConfig().getInt("safety.auto-backups.interval-minutes", 30);
+    }
+
+    int automatedBackupRetentionCount() {
+        return getConfig().getInt("safety.auto-backups.retention", 12);
+    }
+
+    boolean startupSafetyBackupEnabled() {
+        return getConfig().getBoolean("safety.startup-safety-copy", true);
+    }
+
+    boolean shutdownSafetyBackupEnabled() {
+        return getConfig().getBoolean("safety.shutdown-safety-copy", true);
+    }
+
     boolean reloadRuntime() {
         reloadConfig();
         this.messages = CoffersMessagePalette.fromConfig(getConfig());
->>>>>>> Stashed changes
         shutdownRuntime();
         return loadRuntime(true);
     }
@@ -159,11 +167,11 @@ public final class CoffersPlugin extends JavaPlugin {
             registerVaultCompatibility();
             configureMigrationGateway();
             registerPlaceholderSupport();
-<<<<<<< Updated upstream
-=======
+            bootstrapOnlinePlayers();
+            this.safetyBackups.start();
+            this.safetyBackups.runStartupBackupIfEnabled();
             writeStartupDiagnostics();
             logStartupSummary();
->>>>>>> Stashed changes
 
             if (reloading) {
                 getLogger().info("Reloaded Coffers runtime successfully.");
@@ -177,15 +185,15 @@ public final class CoffersPlugin extends JavaPlugin {
     }
 
     private void shutdownRuntime() {
+        if (this.safetyBackups != null) {
+            this.safetyBackups.stop();
+        }
         unregisterPlaceholderSupport();
         getServer().getServicesManager().unregisterAll(this);
         this.vaultEconomyProvider = null;
         this.migrationService = new UnavailableMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
-<<<<<<< Updated upstream
-=======
         this.paymentPreferences = null;
         this.bankRegistry = null;
->>>>>>> Stashed changes
         if (this.economy != null) {
             this.economy.close();
             this.economy = null;
@@ -251,8 +259,6 @@ public final class CoffersPlugin extends JavaPlugin {
         }
     }
 
-<<<<<<< Updated upstream
-=======
     String configuredStorageType() {
         return getConfig().getString("storage.type", "yaml").toLowerCase(Locale.ROOT);
     }
@@ -271,6 +277,14 @@ public final class CoffersPlugin extends JavaPlugin {
 
     boolean isPlaceholderExpansionActive() {
         return this.placeholderExpansion != null;
+    }
+
+    boolean autoCreatePlayerBanks() {
+        return getConfig().getBoolean("banks.auto-create-player-bank", true);
+    }
+
+    String playerBankSuffix() {
+        return getConfig().getString("banks.player-bank-suffix", "-bank");
     }
 
     private void writeStartupDiagnostics() {
@@ -306,13 +320,18 @@ public final class CoffersPlugin extends JavaPlugin {
                 + ", banks=" + this.bankRegistry.bankCount());
     }
 
+    private void bootstrapOnlinePlayers() {
+        for (final Player player : getServer().getOnlinePlayers()) {
+            this.playerAccountListener.bootstrapPlayer(player);
+        }
+    }
+
     private void registerCommand(final String commandName, final CoffersCommandHandler executor) {
         final PluginCommand command = Objects.requireNonNull(getCommand(commandName), commandName + " command missing from plugin.yml");
         command.setExecutor(executor);
         command.setTabCompleter(executor);
     }
 
->>>>>>> Stashed changes
     private List<CurrencyDefinition> loadCurrencies() {
         final List<CurrencyDefinition> currencies = new ArrayList<>();
         final ConfigurationSection definitionsSection = getConfig().getConfigurationSection("currencies.definitions");

@@ -420,6 +420,29 @@ final class CoffersLegacyEconomyService {
         }
     }
 
+    synchronized boolean restoreAccountFromSnapshot(final UUID accountId, final LegacyStorageSnapshot snapshot) {
+        Map<String, BigDecimal> importedBalances = snapshot.getBalances().get(accountId);
+        List<LegacyLedgerEntry> importedHistory = snapshot.getHistory().get(accountId);
+        if (importedBalances == null && importedHistory == null) {
+            return false;
+        }
+
+        Map<String, BigDecimal> accountBalances = new ConcurrentHashMap<String, BigDecimal>();
+        for (LegacyCurrencyDefinition currency : this.currencies.values()) {
+            BigDecimal importedBalance = importedBalances == null ? null : importedBalances.get(currency.getId());
+            accountBalances.put(
+                    currency.getId(),
+                    normalize(currency.getId(), importedBalance == null ? currency.getStartingBalance() : importedBalance)
+            );
+        }
+
+        this.balances.put(accountId, accountBalances);
+        this.history.put(accountId, new ArrayList<LegacyLedgerEntry>(importedHistory == null ? Collections.<LegacyLedgerEntry>emptyList() : importedHistory));
+        persistAccount(accountId);
+        persistHistory(accountId);
+        return true;
+    }
+
     private LegacyLedgerEntry recordEntry(
             final UUID accountId,
             final UUID counterpartyAccountId,

@@ -112,8 +112,6 @@ class CoffersEconomyServiceTest {
         assertEquals("System", service.recentTransactions(accountId, 10).getFirst().actor().actorName());
     }
 
-<<<<<<< Updated upstream
-=======
     @Test
     void replaceSnapshotPurgesAccountsRemovedFromImportedData() {
         final RecordingStorage storage = new RecordingStorage();
@@ -197,7 +195,6 @@ class CoffersEconomyServiceTest {
         }
     }
 
->>>>>>> Stashed changes
     private static CurrencyDefinition currency(final String id) {
         return new CurrencyDefinition(
                 id,

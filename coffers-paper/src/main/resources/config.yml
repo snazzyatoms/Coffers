@@ -63,8 +63,43 @@ payments:
 # Bank Registry
 # ---------------------------------------------------------------------------
 # Stores Coffers bank names and their linked internal bank accounts.
+#
+# auto-create-player-bank:
+# - when enabled, Coffers will create a personal bank entry for players when
+#   they join the server
+# - this is separate from a player's normal economy account
+# - the generated bank name uses the player's name plus the configured suffix
+#   so it stays command-friendly
 banks:
   registry-file: banks.yml
+  auto-create-player-bank: true
+  player-bank-suffix: "-bank"
+
+# ---------------------------------------------------------------------------
+# Safety And Recovery
+# ---------------------------------------------------------------------------
+# Coffers can create automatic safety copies so balances, banks, payment
+# preferences, and ledger history are easier to recover if a server issue,
+# plugin mistake, or accidental overwrite happens.
+#
+# auto-backups.interval-minutes:
+# - common values are 15, 30, or 60
+# - any positive minute value can be used
+#
+# auto-backups.retention:
+# - controls how many automated safety backups Coffers keeps
+# - manual /coffers backup files are not affected unless they use an automated
+#   Coffers safety filename prefix
+#
+# startup-safety-copy / shutdown-safety-copy:
+# - create an automatic snapshot when the plugin starts or stops
+safety:
+  auto-backups:
+    enabled: true
+    interval-minutes: 30
+    retention: 12
+  startup-safety-copy: true
+  shutdown-safety-copy: true
 
 # ---------------------------------------------------------------------------
 # Storage

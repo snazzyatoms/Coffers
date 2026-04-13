@@ -20,14 +20,18 @@ final class BankRegistryService {
     private final Map<String, String> namesByKey = new LinkedHashMap<>();
 
     BankRegistryService(final JavaPlugin plugin, final String fileName) {
-        this.file = new File(plugin.getDataFolder(), fileName);
+        this(new File(plugin.getDataFolder(), fileName));
+    }
+
+    BankRegistryService(final File file) {
+        this.file = file;
         this.configuration = YamlConfiguration.loadConfiguration(this.file);
         load();
     }
 
     synchronized boolean createBank(final String rawName) {
         final String normalized = normalize(rawName);
-        if (normalized.isEmpty() || this.namesByKey.containsKey(normalized)) {
+        if (normalized.isEmpty() || lookupKey(rawName) != null) {
             return false;
         }
         this.namesByKey.put(normalized, rawName.trim());
@@ -36,8 +40,8 @@ final class BankRegistryService {
     }
 
     synchronized boolean deleteBank(final String rawName) {
-        final String normalized = normalize(rawName);
-        if (!this.namesByKey.containsKey(normalized)) {
+        final String normalized = lookupKey(rawName);
+        if (normalized == null) {
             return false;
         }
         this.namesByKey.remove(normalized);
@@ -46,15 +50,56 @@ final class BankRegistryService {
     }
 
     synchronized boolean exists(final String rawName) {
-        return this.namesByKey.containsKey(normalize(rawName));
+        return lookupKey(rawName) != null;
     }
 
     synchronized UUID bankAccountId(final String rawName) {
-        final String normalized = normalize(rawName);
-        if (!this.namesByKey.containsKey(normalized)) {
+        final String normalized = lookupKey(rawName);
+        if (normalized == null) {
             throw new IllegalArgumentException("Unknown bank: " + rawName);
         }
         return bankUuid(normalized);
+    }
+
+    synchronized String bankKey(final String rawName) {
+        return lookupKey(rawName);
+    }
+
+    synchronized UUID bankAccountIdForKey(final String rawKey) {
+        final String normalized = normalize(rawKey);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("Bank key must not be empty.");
+        }
+        return bankUuid(normalized);
+    }
+
+    synchronized UUID ensureBank(final String rawKey, final String displayName) {
+        final String normalizedKey = normalize(rawKey);
+        if (normalizedKey.isEmpty()) {
+            throw new IllegalArgumentException("Bank key must not be empty.");
+        }
+
+        final String requestedDisplayName = (displayName == null || displayName.isBlank())
+                ? normalizedKey
+                : displayName.trim();
+        final String resolvedDisplayName = uniqueDisplayName(normalizedKey, requestedDisplayName);
+        final String existingDisplayName = this.namesByKey.get(normalizedKey);
+        if (!resolvedDisplayName.equals(existingDisplayName)) {
+            this.namesByKey.put(normalizedKey, resolvedDisplayName);
+            save();
+        }
+        return bankUuid(normalizedKey);
+    }
+
+    synchronized UUID ensurePersonalBank(final UUID ownerId, final String playerName, final String suffix) {
+        final String key = personalBankKey(ownerId);
+        final String displayName = uniqueDisplayName(key, defaultPersonalBankName(playerName, suffix));
+        final String existingDisplayName = this.namesByKey.get(key);
+        if (!displayName.equals(existingDisplayName)) {
+            this.namesByKey.put(key, displayName);
+            save();
+        }
+        return bankUuid(key);
     }
 
     synchronized boolean isBankAccount(final UUID accountId) {
@@ -79,12 +124,17 @@ final class BankRegistryService {
         return new LinkedHashSet<>(this.namesByKey.values());
     }
 
-    synchronized void replaceBanks(final Set<String> bankNames) {
+    synchronized Map<String, String> snapshotBanks() {
+        return new LinkedHashMap<>(this.namesByKey);
+    }
+
+    synchronized void replaceBanks(final Map<String, String> bankNamesByKey) {
         this.namesByKey.clear();
-        for (final String bankName : bankNames) {
-            final String normalized = normalize(bankName);
-            if (!normalized.isEmpty()) {
-                this.namesByKey.put(normalized, bankName.trim());
+        for (final Map.Entry<String, String> entry : bankNamesByKey.entrySet()) {
+            final String normalizedKey = normalize(entry.getKey());
+            final String displayName = entry.getValue();
+            if (!normalizedKey.isEmpty() && displayName != null && !displayName.isBlank()) {
+                this.namesByKey.put(normalizedKey, displayName.trim());
             }
         }
         save();
@@ -119,6 +169,43 @@ final class BankRegistryService {
 
     private String normalize(final String rawName) {
         return rawName == null ? "" : rawName.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String lookupKey(final String rawName) {
+        final String normalized = normalize(rawName);
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (this.namesByKey.containsKey(normalized)) {
+            return normalized;
+        }
+        for (final Map.Entry<String, String> entry : this.namesByKey.entrySet()) {
+            if (normalize(entry.getValue()).equals(normalized)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
+    private String personalBankKey(final UUID ownerId) {
+        return "player-" + ownerId.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private String defaultPersonalBankName(final String playerName, final String suffix) {
+        final String safePlayerName = playerName == null || playerName.isBlank() ? "player" : playerName.trim();
+        final String resolvedSuffix = suffix == null || suffix.isBlank() ? "-bank" : suffix.trim();
+        return safePlayerName + resolvedSuffix;
+    }
+
+    private String uniqueDisplayName(final String key, final String requestedDisplayName) {
+        final String trimmed = requestedDisplayName.trim();
+        final String normalizedDisplay = normalize(trimmed);
+        for (final Map.Entry<String, String> entry : this.namesByKey.entrySet()) {
+            if (!entry.getKey().equals(key) && normalize(entry.getValue()).equals(normalizedDisplay)) {
+                return trimmed + "-" + key.substring(Math.max(0, key.length() - 6));
+            }
+        }
+        return trimmed;
     }
 
     private UUID bankUuid(final String normalizedName) {

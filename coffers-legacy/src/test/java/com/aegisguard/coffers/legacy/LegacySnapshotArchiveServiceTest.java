@@ -29,14 +29,14 @@ class LegacySnapshotArchiveServiceTest {
         );
 
         try {
-            java.io.File backupFile = service.backup("spring-restore-point", snapshot, Collections.singleton(disabledPaymentAccount), Collections.singleton("TownBank"));
+            java.io.File backupFile = service.backup("spring-restore-point", snapshot, Collections.singleton(disabledPaymentAccount), Collections.singletonMap("townbank", "TownBank"));
             assertEquals("spring-restore-point.yml", backupFile.getName());
 
             LegacyArchiveSnapshot restored = service.restoreBackup("spring-restore-point");
             assertEquals(new BigDecimal("12.50"), restored.getStorageSnapshot().getBalances().get(accountId).get("coins"));
             assertEquals(1, restored.getStorageSnapshot().getHistory().get(accountId).size());
             assertTrue(restored.getDisabledPaymentAccounts().contains(disabledPaymentAccount));
-            assertTrue(restored.getBanks().contains("TownBank"));
+            assertEquals("TownBank", restored.getBanks().get("townbank"));
         } finally {
             deleteRecursively(dataFolder);
         }
@@ -54,14 +54,14 @@ class LegacySnapshotArchiveServiceTest {
         );
 
         try {
-            service.export("manual-export", snapshot, Collections.singleton(disabledPaymentAccount), Collections.singleton("StaffVault"));
+            service.export("manual-export", snapshot, Collections.singleton(disabledPaymentAccount), Collections.singletonMap("staffvault", "StaffVault"));
 
             LegacyArchiveSnapshot imported = service.importSnapshot("manual-export");
             assertNotNull(imported);
             assertEquals(new BigDecimal("5.00"), imported.getStorageSnapshot().getBalances().get(accountId).get("coins"));
             assertEquals(1, imported.getStorageSnapshot().getHistory().get(accountId).size());
             assertTrue(imported.getDisabledPaymentAccounts().contains(disabledPaymentAccount));
-            assertTrue(imported.getBanks().contains("StaffVault"));
+            assertEquals("StaffVault", imported.getBanks().get("staffvault"));
         } finally {
             deleteRecursively(dataFolder);
         }
@@ -83,13 +83,16 @@ class LegacySnapshotArchiveServiceTest {
         );
 
         try {
-            java.io.File firstBackup = service.backup("first-pass", firstSnapshot, Collections.<UUID>emptySet(), Collections.singleton("TownBank"));
-            java.io.File secondBackup = service.backup("second-pass", secondSnapshot, Collections.<UUID>emptySet(), Collections.unmodifiableSet(new java.util.LinkedHashSet<String>(java.util.Arrays.asList("TownBank", "VaultBank"))));
+            java.io.File firstBackup = service.backup("first-pass", firstSnapshot, Collections.<UUID>emptySet(), Collections.singletonMap("townbank", "TownBank"));
+            java.util.Map<String, String> secondBanks = new java.util.LinkedHashMap<String, String>();
+            secondBanks.put("townbank", "TownBank");
+            secondBanks.put("vaultbank", "VaultBank");
+            java.io.File secondBackup = service.backup("second-pass", secondSnapshot, Collections.<UUID>emptySet(), secondBanks);
             assertTrue(secondBackup.setLastModified(firstBackup.lastModified() + 10_000L));
 
             LegacyArchiveSnapshot restored = service.restoreBackup("latest");
             assertEquals(new BigDecimal("9.00"), restored.getStorageSnapshot().getBalances().get(accountId).get("coins"));
-            assertTrue(restored.getBanks().contains("VaultBank"));
+            assertEquals("VaultBank", restored.getBanks().get("vaultbank"));
         } finally {
             deleteRecursively(dataFolder);
         }

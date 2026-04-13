@@ -8,7 +8,7 @@ softdepend: [Vault]
 commands:
   cofferslegacy:
     description: Core Coffers Legacy economy commands.
-    usage: /cofferslegacy <balance|pay|paytoggle|set|history|rollback|bank|status|top|currencies|migratevault|reload|backup [name]|export [name]|import <name>|restore [backup-name|latest]>
+    usage: /cofferslegacy <balance|pay|paytoggle|set|history|rollback|bank|status|top|currencies|migratevault|reload|backup [name]|export [name]|import <name>|restore [source]|restorepreview <source>|restoreaccount <source> <target> [dryrun]|validate>
     permission: cofferslegacy.command.use
   baltop:
     description: View the top Coffers Legacy balances.
@@ -39,11 +39,8 @@ permissions:
     default: op
   cofferslegacy.command.history.others:
     default: op
-<<<<<<< Updated upstream
-=======
   cofferslegacy.command.status:
     default: true
->>>>>>> Stashed changes
   cofferslegacy.command.set:
     default: op
   cofferslegacy.command.rollback:
@@ -71,4 +68,10 @@ permissions:
   cofferslegacy.command.import:
     default: op
   cofferslegacy.command.restore:
+    default: op
+  cofferslegacy.command.restorepreview:
+    default: op
+  cofferslegacy.command.restoreaccount:
+    default: op
+  cofferslegacy.command.validate:
     default: op

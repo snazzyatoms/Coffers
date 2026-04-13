@@ -325,11 +325,6 @@ final class CoffersEconomyService implements CoffersEconomy {
 
     @Override
     public synchronized List<LedgerEntry> transactionHistory(final UUID accountId, final int offset, final int limit) {
-<<<<<<< Updated upstream
-        final List<LedgerEntry> entries = new ArrayList<>(this.history.getOrDefault(accountId, List.of()));
-        entries.sort(Comparator.comparingLong(LedgerEntry::createdAtEpochMilli).reversed());
-        return entries.stream()
-=======
         return filteredTransactionHistory(accountId, offset, limit, null, null);
     }
 
@@ -346,7 +341,6 @@ final class CoffersEconomyService implements CoffersEconomy {
         return entries.stream()
                 .filter(entry -> normalizedCurrencyId == null || normalizedCurrencyId.equals(entry.currencyId()))
                 .filter(entry -> kind == null || kind == entry.kind())
->>>>>>> Stashed changes
                 .skip(Math.max(offset, 0))
                 .limit(Math.max(limit, 0))
                 .toList();
@@ -354,10 +348,6 @@ final class CoffersEconomyService implements CoffersEconomy {
 
     @Override
     public synchronized List<AccountSnapshot> topAccounts(final String currencyId, final int limit) {
-<<<<<<< Updated upstream
-        final String normalizedCurrencyId = normalizedCurrencyId(currencyId);
-        return this.balances.entrySet().stream()
-=======
         return topAccounts(currencyId, limit, accountId -> true);
     }
 
@@ -365,7 +355,6 @@ final class CoffersEconomyService implements CoffersEconomy {
         final String normalizedCurrencyId = normalizedCurrencyId(currencyId);
         return this.balances.entrySet().stream()
                 .filter(entry -> includeAccount.test(entry.getKey()))
->>>>>>> Stashed changes
                 .map(entry -> new AccountSnapshot(
                         entry.getKey(),
                         normalizedCurrencyId,
@@ -374,8 +363,6 @@ final class CoffersEconomyService implements CoffersEconomy {
                 .sorted(Comparator.comparing(AccountSnapshot::balance).reversed())
                 .limit(Math.max(limit, 0))
                 .toList();
-<<<<<<< Updated upstream
-=======
     }
 
     synchronized LedgerEntry findEntry(final UUID entryId) {
@@ -415,7 +402,6 @@ final class CoffersEconomyService implements CoffersEconomy {
         this.history.remove(accountId);
         persistAccountSnapshot(accountId, Map.of());
         persistHistorySnapshot(accountId, List.of());
->>>>>>> Stashed changes
     }
 
     @Override
@@ -476,13 +462,10 @@ final class CoffersEconomyService implements CoffersEconomy {
     }
 
     synchronized void replaceSnapshot(final StorageSnapshot snapshot) {
-<<<<<<< Updated upstream
-=======
         final Set<UUID> previousAccountIds = new LinkedHashSet<>();
         previousAccountIds.addAll(this.balances.keySet());
         previousAccountIds.addAll(this.history.keySet());
 
->>>>>>> Stashed changes
         this.balances.clear();
         this.history.clear();
 
@@ -503,8 +486,6 @@ final class CoffersEconomyService implements CoffersEconomy {
             this.history.put(entry.getKey(), new ArrayList<>(entry.getValue()));
             persistHistory(entry.getKey());
         }
-<<<<<<< Updated upstream
-=======
 
         final Set<UUID> importedAccountIds = new LinkedHashSet<>();
         importedAccountIds.addAll(snapshot.balances().keySet());
@@ -515,7 +496,29 @@ final class CoffersEconomyService implements CoffersEconomy {
             persistAccountSnapshot(removedAccountId, Map.of());
             persistHistorySnapshot(removedAccountId, List.of());
         }
->>>>>>> Stashed changes
+    }
+
+    synchronized boolean restoreAccountFromSnapshot(final UUID accountId, final StorageSnapshot snapshot) {
+        final Map<String, BigDecimal> importedBalances = snapshot.balances().get(accountId);
+        final List<LedgerEntry> importedHistory = snapshot.history().get(accountId);
+        if (importedBalances == null && importedHistory == null) {
+            return false;
+        }
+
+        final Map<String, BigDecimal> accountBalances = new ConcurrentHashMap<>();
+        for (final CurrencyDefinition currency : this.currencies.values()) {
+            final BigDecimal importedBalance = importedBalances == null ? null : importedBalances.get(currency.id());
+            accountBalances.put(
+                    currency.id(),
+                    normalize(currency.id(), importedBalance == null ? currency.startingBalance() : importedBalance)
+            );
+        }
+
+        this.balances.put(accountId, accountBalances);
+        this.history.put(accountId, new ArrayList<>(importedHistory == null ? List.of() : importedHistory));
+        persistAccount(accountId);
+        persistHistory(accountId);
+        return true;
     }
 
     private LedgerEntry recordEntry(

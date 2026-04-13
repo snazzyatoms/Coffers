@@ -30,20 +30,13 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
             connection = openConnection();
             statement = connection.createStatement();
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_accounts (account_uuid VARCHAR(36) NOT NULL, currency_id VARCHAR(64) NOT NULL, balance_value VARCHAR(64) NOT NULL, PRIMARY KEY (account_uuid, currency_id))");
-<<<<<<< Updated upstream
-            statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_history (entry_id VARCHAR(36) NOT NULL, account_uuid VARCHAR(36) NOT NULL, reference_id VARCHAR(36) NOT NULL, counterparty_uuid VARCHAR(36) NULL, currency_id VARCHAR(64) NOT NULL, transaction_kind VARCHAR(32) NOT NULL, amount_value VARCHAR(64) NOT NULL, resulting_balance VARCHAR(64) NOT NULL, actor_type VARCHAR(32) NOT NULL, actor_id VARCHAR(36) NULL, actor_name VARCHAR(128) NULL, actor_source VARCHAR(128) NULL, reason_value VARCHAR(255) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (entry_id))");
-=======
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_history (entry_id VARCHAR(36) NOT NULL, account_uuid VARCHAR(36) NOT NULL, reference_id VARCHAR(36) NOT NULL, counterparty_uuid VARCHAR(36) NULL, currency_id VARCHAR(64) NOT NULL, transaction_kind VARCHAR(32) NOT NULL, amount_value VARCHAR(64) NOT NULL, previous_balance VARCHAR(64) NULL, resulting_balance VARCHAR(64) NOT NULL, actor_type VARCHAR(32) NOT NULL, actor_id VARCHAR(36) NULL, actor_name VARCHAR(128) NULL, actor_source VARCHAR(128) NULL, reason_value VARCHAR(255) NULL, reversal_of_reference_id VARCHAR(36) NULL, created_at BIGINT NOT NULL, PRIMARY KEY (entry_id))");
->>>>>>> Stashed changes
             statement.execute("CREATE TABLE IF NOT EXISTS coffers_legacy_metadata (metadata_key VARCHAR(64) NOT NULL, metadata_value VARCHAR(255) NOT NULL, PRIMARY KEY (metadata_key))");
             statement.executeUpdate("DELETE FROM coffers_legacy_metadata WHERE metadata_key IN ('storage_engine', 'schema_version')");
             statement.executeUpdate("INSERT INTO coffers_legacy_metadata (metadata_key, metadata_value) VALUES ('storage_engine', 'sql')");
             statement.executeUpdate("INSERT INTO coffers_legacy_metadata (metadata_key, metadata_value) VALUES ('schema_version', '1')");
-<<<<<<< Updated upstream
-=======
             ensureColumn(statement, "coffers_legacy_history", "previous_balance", "VARCHAR(64) NULL");
             ensureColumn(statement, "coffers_legacy_history", "reversal_of_reference_id", "VARCHAR(36) NULL");
->>>>>>> Stashed changes
         } finally {
             closeQuietly(statement);
             closeQuietly(connection);
@@ -160,15 +153,6 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                 insert.setString(5, entry.getCurrencyId());
                 insert.setString(6, entry.getKind().name());
                 insert.setString(7, entry.getAmount().toPlainString());
-<<<<<<< Updated upstream
-                insert.setString(8, entry.getResultingBalance().toPlainString());
-                insert.setString(9, actor.getType().name());
-                insert.setString(10, actor.getActorId() == null ? null : actor.getActorId().toString());
-                insert.setString(11, actor.getActorName());
-                insert.setString(12, actor.getSource());
-                insert.setString(13, entry.getReason());
-                insert.setLong(14, entry.getCreatedAtEpochMilli());
-=======
                 insert.setString(8, entry.getPreviousBalance().toPlainString());
                 insert.setString(9, entry.getResultingBalance().toPlainString());
                 insert.setString(10, actor.getType().name());
@@ -178,7 +162,6 @@ final class LegacySqlEconomyStorage implements LegacyEconomyStorage {
                 insert.setString(14, entry.getReason());
                 insert.setString(15, entry.getReversalOfReferenceId() == null ? null : entry.getReversalOfReferenceId().toString());
                 insert.setLong(16, entry.getCreatedAtEpochMilli());
->>>>>>> Stashed changes
                 insert.addBatch();
             }
             insert.executeBatch();

@@ -6,8 +6,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -90,6 +94,15 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
             }
             if ("restore".equals(action) || "restorebackup".equals(action)) {
                 return handleRestore(sender, args);
+            }
+            if ("restorepreview".equals(action) || "previewrestore".equals(action)) {
+                return handleRestorePreview(sender, args);
+            }
+            if ("restoreaccount".equals(action)) {
+                return handleRestoreAccount(sender, args);
+            }
+            if ("validate".equals(action) || "audit".equals(action)) {
+                return handleValidate(sender);
             }
         } catch (IllegalArgumentException exception) {
             messages().send(sender, "<error>Coffers Legacy error<secondary>: <primary>%message%", single("message", exception.getMessage()));
@@ -361,6 +374,9 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
         messages().send(sender, "<bullet><primary>Vault runtime state<secondary>: <highlight>%state%", single("state", vaultStatus));
         messages().send(sender, "<bullet><primary>Payments blocked<secondary>: <highlight>%count%", single("count", Integer.toString(this.plugin.paymentPreferences().disabledPaymentCount())));
         messages().send(sender, "<bullet><primary>Registered banks<secondary>: <highlight>%count%", single("count", Integer.toString(this.plugin.bankRegistry().bankCount())));
+        messages().send(sender, "<bullet><primary>Automatic backups<secondary>: <highlight>%state%", single("state", this.plugin.autoBackupsEnabled() ? "enabled" : "disabled"));
+        messages().send(sender, "<bullet><primary>Backup interval<secondary>: <highlight>%minutes% minute(s)", single("minutes", Integer.toString(this.plugin.autoBackupIntervalMinutes())));
+        messages().send(sender, "<bullet><primary>Automated retention<secondary>: <highlight>%count%", single("count", Integer.toString(this.plugin.automatedBackupRetentionCount())));
         messages().send(sender, "<bullet><primary>Latest report folder<secondary>: <highlight>plugins/%plugin%/reports", single("plugin", this.plugin.getDataFolder().getName()));
         return true;
     }
@@ -429,11 +445,21 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
 
         String backupName = args.length >= 2 ? args[1] : null;
         try {
+            LegacyStorageSnapshot snapshot = this.plugin.economy().snapshot();
             File backupFile = this.plugin.archiveService().backup(
-                    backupName,
-                    this.plugin.economy().snapshot(),
-                    this.plugin.paymentPreferences().disabledPaymentAccounts(),
-                    this.plugin.bankRegistry().banks()
+                backupName,
+                snapshot,
+                this.plugin.paymentPreferences().disabledPaymentAccounts(),
+                this.plugin.bankRegistry().snapshotBanks()
+        );
+            this.plugin.diagnostics().writeBackupReport(
+                    "manual",
+                    backupFile,
+                    0,
+                    snapshot.getBalances().size(),
+                    snapshot.getHistory().size(),
+                    this.plugin.paymentPreferences().disabledPaymentCount(),
+                    this.plugin.bankRegistry().bankCount()
             );
             messages().send(sender, "<success>Created Coffers Legacy backup<secondary>: <highlight>%file%", single("file", backupFile.getName()));
         } catch (Exception exception) {
@@ -451,11 +477,11 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
         String exportName = args.length >= 2 ? args[1] : null;
         try {
             File exportFile = this.plugin.archiveService().export(
-                    exportName,
-                    this.plugin.economy().snapshot(),
-                    this.plugin.paymentPreferences().disabledPaymentAccounts(),
-                    this.plugin.bankRegistry().banks()
-            );
+                exportName,
+                this.plugin.economy().snapshot(),
+                this.plugin.paymentPreferences().disabledPaymentAccounts(),
+                this.plugin.bankRegistry().snapshotBanks()
+        );
             messages().send(sender, "<success>Exported Coffers Legacy data to <highlight>%file%", single("file", exportFile.getName()));
         } catch (Exception exception) {
             messages().send(sender, "<error>Export failed<secondary>: <primary>%message%", single("message", exception.getMessage()));
@@ -493,18 +519,187 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
 
         String backupName = args.length >= 2 ? args[1] : "latest";
         try {
-            LegacyArchiveSnapshot restored = this.plugin.archiveService().restoreBackup(backupName);
+            LegacyResolvedArchiveSnapshot source = this.plugin.archiveService().resolve(backupName);
+            LegacyArchiveSnapshot restored = source.snapshot();
             this.plugin.economy().replaceSnapshot(restored.getStorageSnapshot());
             this.plugin.paymentPreferences().replaceDisabledPaymentAccounts(restored.getDisabledPaymentAccounts());
             this.plugin.bankRegistry().replaceBanks(restored.getBanks());
             messages().send(
                     sender,
-                    "<success>Restored Coffers Legacy backup <highlight>%name%<success> without restarting the server.",
-                    single("name", backupName)
+                    "<success>Restored Coffers Legacy %type% <highlight>%name%<success> without restarting the server.",
+                    mapOf("type", source.sourceType(), "name", source.sourceName())
             );
         } catch (Exception exception) {
             messages().send(sender, "<error>Backup restore failed<secondary>: <primary>%message%", single("message", exception.getMessage()));
         }
+        return true;
+    }
+
+    private boolean handleRestorePreview(final CommandSender sender, final String[] args) {
+        if (!sender.hasPermission("cofferslegacy.command.restorepreview")) {
+            messages().send(sender, "<error>You do not have permission to preview Coffers Legacy restores.");
+            return true;
+        }
+        if (args.length < 2) {
+            messages().send(sender, "<usage>Usage<secondary>: <primary>/cofferslegacy restorepreview <backup-name|latest|export:name>");
+            return true;
+        }
+
+        try {
+            LegacyResolvedArchiveSnapshot source = this.plugin.archiveService().resolve(args[1]);
+            LegacyStorageSnapshot current = this.plugin.economy().snapshot();
+            LegacyStorageSnapshot incoming = source.snapshot().getStorageSnapshot();
+
+            Set<UUID> currentAccounts = accountIds(current);
+            Set<UUID> incomingAccounts = accountIds(incoming);
+            int changedAccounts = 0;
+            for (UUID accountId : incomingAccounts) {
+                if (currentAccounts.contains(accountId)
+                        && (!Objects.equals(current.getBalances().get(accountId), incoming.getBalances().get(accountId))
+                        || !Objects.equals(current.getHistory().get(accountId), incoming.getHistory().get(accountId)))) {
+                    changedAccounts++;
+                }
+            }
+
+            Map<String, String> currentBanks = this.plugin.bankRegistry().snapshotBanks();
+            Map<String, String> incomingBanks = source.snapshot().getBanks();
+            int changedBanks = 0;
+            for (String bankKey : incomingBanks.keySet()) {
+                if (currentBanks.containsKey(bankKey) && !Objects.equals(currentBanks.get(bankKey), incomingBanks.get(bankKey))) {
+                    changedBanks++;
+                }
+            }
+
+            Set<UUID> currentDisabled = this.plugin.paymentPreferences().disabledPaymentAccounts();
+            Set<UUID> incomingDisabled = source.snapshot().getDisabledPaymentAccounts();
+            Set<UUID> disabledDifference = new LinkedHashSet<UUID>(currentDisabled);
+            disabledDifference.removeAll(incomingDisabled);
+            for (UUID accountId : incomingDisabled) {
+                if (!currentDisabled.contains(accountId)) {
+                    disabledDifference.add(accountId);
+                }
+            }
+
+            Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+            summary.put("current-account-count", Integer.valueOf(currentAccounts.size()));
+            summary.put("incoming-account-count", Integer.valueOf(incomingAccounts.size()));
+            summary.put("accounts-added", Integer.valueOf(differenceSize(incomingAccounts, currentAccounts)));
+            summary.put("accounts-removed", Integer.valueOf(differenceSize(currentAccounts, incomingAccounts)));
+            summary.put("accounts-changed", Integer.valueOf(changedAccounts));
+            summary.put("current-bank-count", Integer.valueOf(currentBanks.size()));
+            summary.put("incoming-bank-count", Integer.valueOf(incomingBanks.size()));
+            summary.put("banks-added", Integer.valueOf(differenceSize(incomingBanks.keySet(), currentBanks.keySet())));
+            summary.put("banks-removed", Integer.valueOf(differenceSize(currentBanks.keySet(), incomingBanks.keySet())));
+            summary.put("banks-changed", Integer.valueOf(changedBanks));
+            summary.put("disabled-payment-changes", Integer.valueOf(disabledDifference.size()));
+
+            File reportFile = this.plugin.diagnostics().writeRestorePreviewReport(
+                    "full-restore",
+                    source.sourceType(),
+                    source.sourceName(),
+                    summary,
+                    Collections.singletonList("Preview only. No Coffers Legacy data was changed.")
+            );
+            messages().send(sender, "<accent>Coffers Legacy restore preview for <highlight>%type%:%name%<accent>:", mapOf("type", source.sourceType(), "name", source.sourceName()));
+            messages().send(sender, "<bullet><primary>Accounts added<secondary>: <highlight>%count%", single("count", summary.get("accounts-added").toString()));
+            messages().send(sender, "<bullet><primary>Accounts changed<secondary>: <highlight>%count%", single("count", summary.get("accounts-changed").toString()));
+            messages().send(sender, "<bullet><primary>Accounts removed<secondary>: <highlight>%count%", single("count", summary.get("accounts-removed").toString()));
+            messages().send(sender, "<bullet><primary>Banks changed<secondary>: <highlight>%count%", single("count", summary.get("banks-changed").toString()));
+            messages().send(sender, "<bullet><primary>Payment preference changes<secondary>: <highlight>%count%", single("count", summary.get("disabled-payment-changes").toString()));
+            messages().send(sender, "<bullet><primary>Preview report<secondary>: <highlight>%file%", single("file", reportFile.getName()));
+        } catch (Exception exception) {
+            messages().send(sender, "<error>Restore preview failed<secondary>: <primary>%message%", single("message", exception.getMessage()));
+        }
+        return true;
+    }
+
+    private boolean handleRestoreAccount(final CommandSender sender, final String[] args) {
+        if (!sender.hasPermission("cofferslegacy.command.restoreaccount")) {
+            messages().send(sender, "<error>You do not have permission to restore individual Coffers Legacy accounts.");
+            return true;
+        }
+        if (args.length < 3) {
+            messages().send(sender, "<usage>Usage<secondary>: <primary>/cofferslegacy restoreaccount <backup-name|latest|export:name> <player|uuid|bank:name> [dryrun]");
+            return true;
+        }
+
+        boolean dryRun = args.length >= 4 && "dryrun".equalsIgnoreCase(args[3]);
+        try {
+            LegacyResolvedArchiveSnapshot source = this.plugin.archiveService().resolve(args[1]);
+            String targetSpec = args[2];
+            if (targetSpec.toLowerCase(Locale.ROOT).startsWith("bank:")) {
+                return handleRestoreBankAccount(sender, source, targetSpec.substring("bank:".length()), dryRun);
+            }
+            return handleRestorePlayerAccount(sender, source, targetSpec, dryRun);
+        } catch (Exception exception) {
+            messages().send(sender, "<error>Account restore failed<secondary>: <primary>%message%", single("message", exception.getMessage()));
+            return true;
+        }
+    }
+
+    private boolean handleValidate(final CommandSender sender) {
+        if (!sender.hasPermission("cofferslegacy.command.validate")) {
+            messages().send(sender, "<error>You do not have permission to validate Coffers Legacy data.");
+            return true;
+        }
+
+        LegacyStorageSnapshot snapshot = this.plugin.economy().snapshot();
+        Set<UUID> accountIds = accountIds(snapshot);
+        Map<String, String> bankSnapshot = this.plugin.bankRegistry().snapshotBanks();
+        List<String> issues = new ArrayList<String>();
+        Set<String> validCurrencies = new LinkedHashSet<String>(currencyIds());
+        Set<String> seenBankDisplays = new LinkedHashSet<String>();
+
+        for (Map.Entry<UUID, Map<String, BigDecimal>> entry : snapshot.getBalances().entrySet()) {
+            for (Map.Entry<String, BigDecimal> balance : entry.getValue().entrySet()) {
+                if (!validCurrencies.contains(balance.getKey())) {
+                    issues.add("Account " + entry.getKey() + " contains unknown currency id '" + balance.getKey() + "'.");
+                }
+                if (balance.getValue() != null && balance.getValue().signum() < 0) {
+                    issues.add("Account " + entry.getKey() + " has a negative balance in currency '" + balance.getKey() + "'.");
+                }
+            }
+        }
+
+        for (Map.Entry<UUID, List<LegacyLedgerEntry>> entry : snapshot.getHistory().entrySet()) {
+            if (!snapshot.getBalances().containsKey(entry.getKey())) {
+                issues.add("History exists for account " + entry.getKey() + " but no live balance snapshot is present.");
+            }
+            for (LegacyLedgerEntry ledgerEntry : entry.getValue()) {
+                if (!validCurrencies.contains(ledgerEntry.getCurrencyId())) {
+                    issues.add("Ledger entry " + ledgerEntry.getEntryId() + " uses unknown currency id '" + ledgerEntry.getCurrencyId() + "'.");
+                }
+                if (ledgerEntry.getResultingBalance().signum() < 0) {
+                    issues.add("Ledger entry " + ledgerEntry.getEntryId() + " results in a negative balance.");
+                }
+            }
+        }
+
+        for (Map.Entry<String, String> bank : bankSnapshot.entrySet()) {
+            UUID bankAccountId = this.plugin.bankRegistry().bankAccountIdForKey(bank.getKey());
+            if (!accountIds.contains(bankAccountId)) {
+                issues.add("Bank '" + bank.getValue() + "' is registered but its backing account snapshot is missing.");
+            }
+            String normalizedDisplay = bank.getValue().toLowerCase(Locale.ROOT);
+            if (!seenBankDisplays.add(normalizedDisplay)) {
+                issues.add("Duplicate bank display name detected: '" + bank.getValue() + "'.");
+            }
+        }
+
+        File reportFile = this.plugin.diagnostics().writeValidationReport(
+                "runtime",
+                snapshot.getBalances().size(),
+                snapshot.getHistory().size(),
+                this.plugin.paymentPreferences().disabledPaymentCount(),
+                bankSnapshot.size(),
+                issues
+        );
+        if (issues.isEmpty()) {
+            messages().send(sender, "<success>Coffers Legacy validation completed without issues.");
+        } else {
+            messages().send(sender, "<warning>Coffers Legacy validation found <highlight>%count%<warning> issue(s).", single("count", Integer.toString(issues.size())));
+        }
+        messages().send(sender, "<bullet><primary>Validation report<secondary>: <highlight>%file%", single("file", reportFile.getName()));
         return true;
     }
 
@@ -783,6 +978,9 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
         messages().send(sender, "<bullet><usage>/cofferslegacy export [name]");
         messages().send(sender, "<bullet><usage>/cofferslegacy import <export-name>");
         messages().send(sender, "<bullet><usage>/cofferslegacy restore [backup-name|latest]");
+        messages().send(sender, "<bullet><usage>/cofferslegacy restorepreview <backup-name|latest|export:name>");
+        messages().send(sender, "<bullet><usage>/cofferslegacy restoreaccount <source> <player|uuid|bank:name> [dryrun]");
+        messages().send(sender, "<bullet><usage>/cofferslegacy validate");
     }
 
     public List<String> onTabComplete(final CommandSender sender, final Command command, final String alias, final String[] args) {
@@ -833,6 +1031,17 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
             if (sender.hasPermission("cofferslegacy.command.restore")) {
                 completions.add("restore");
             }
+            if (sender.hasPermission("cofferslegacy.command.restorepreview")) {
+                completions.add("restorepreview");
+                completions.add("previewrestore");
+            }
+            if (sender.hasPermission("cofferslegacy.command.restoreaccount")) {
+                completions.add("restoreaccount");
+            }
+            if (sender.hasPermission("cofferslegacy.command.validate")) {
+                completions.add("validate");
+                completions.add("audit");
+            }
             return filter(completions, args[0]);
         }
 
@@ -863,8 +1072,14 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
             return filter(migrationService().availableProviders(), args[1]);
         }
 
-        if (args.length == 2 && "restore".equalsIgnoreCase(args[0])) {
-            return filter(Arrays.asList("latest"), args[1]);
+        if (args.length == 2 && ("restore".equalsIgnoreCase(args[0]) || "restorepreview".equalsIgnoreCase(args[0]) || "previewrestore".equalsIgnoreCase(args[0]) || "restoreaccount".equalsIgnoreCase(args[0]))) {
+            List<String> suggestions = new ArrayList<String>();
+            suggestions.add("latest");
+            suggestions.addAll(this.plugin.archiveService().backupNames());
+            for (String exportName : this.plugin.archiveService().exportNames()) {
+                suggestions.add("export:" + exportName);
+            }
+            return filter(suggestions, args[1]);
         }
 
         if (args.length == 2 && "bank".equalsIgnoreCase(args[0])) {
@@ -873,6 +1088,20 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
 
         if (args.length == 3 && "bank".equalsIgnoreCase(args[0]) && !"create".equalsIgnoreCase(args[1])) {
             return filter(new ArrayList<String>(this.plugin.bankRegistry().banks()), args[2]);
+        }
+
+        if (args.length == 3 && "restoreaccount".equalsIgnoreCase(args[0])) {
+            for (Player online : this.plugin.getServer().getOnlinePlayers()) {
+                completions.add(online.getName());
+            }
+            for (String bankName : this.plugin.bankRegistry().banks()) {
+                completions.add("bank:" + bankName);
+            }
+            return filter(completions, args[2]);
+        }
+
+        if (args.length == 4 && "restoreaccount".equalsIgnoreCase(args[0])) {
+            return filter(Collections.singletonList("dryrun"), args[3]);
         }
 
         return Collections.emptyList();
@@ -884,6 +1113,155 @@ final class CoffersLegacyCommandHandler implements CommandExecutor, TabCompleter
             ids.add(currency.getId());
         }
         return ids;
+    }
+
+    private boolean handleRestorePlayerAccount(
+            final CommandSender sender,
+            final LegacyResolvedArchiveSnapshot source,
+            final String playerToken,
+            final boolean dryRun
+    ) {
+        OfflinePlayer player = resolveOfflinePlayer(playerToken);
+        UUID accountId = player.getUniqueId();
+        LegacyStorageSnapshot sourceSnapshot = source.snapshot().getStorageSnapshot();
+        if (!containsAccount(sourceSnapshot, accountId)) {
+            messages().send(sender, "<warning>No Coffers Legacy account data for <highlight>%player%<warning> exists in that %type%.", mapOf("player", displayName(player), "type", source.sourceType()));
+            return true;
+        }
+
+        LegacyStorageSnapshot currentSnapshot = this.plugin.economy().snapshot();
+        boolean currentPaymentsBlocked = !this.plugin.paymentPreferences().allowsPayments(accountId);
+        boolean sourcePaymentsBlocked = source.snapshot().getDisabledPaymentAccounts().contains(accountId);
+        int balanceCurrencies = sourceSnapshot.getBalances().containsKey(accountId) ? sourceSnapshot.getBalances().get(accountId).size() : 0;
+        int historyEntries = sourceSnapshot.getHistory().containsKey(accountId) ? sourceSnapshot.getHistory().get(accountId).size() : 0;
+
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        summary.put("balance-currencies", Integer.valueOf(balanceCurrencies));
+        summary.put("history-entries", Integer.valueOf(historyEntries));
+        summary.put("currently-exists", Boolean.valueOf(containsAccount(currentSnapshot, accountId)));
+        summary.put("payment-preference-changed", Boolean.valueOf(currentPaymentsBlocked != sourcePaymentsBlocked));
+
+        File reportFile = this.plugin.diagnostics().writeAccountRestoreReport(
+                displayName(player),
+                source.sourceType(),
+                source.sourceName(),
+                dryRun,
+                summary,
+                Collections.singletonList(dryRun ? "Preview only. No Coffers Legacy data was changed." : "Applied a targeted Coffers Legacy account restore.")
+        );
+
+        if (!dryRun) {
+            this.plugin.economy().restoreAccountFromSnapshot(accountId, sourceSnapshot);
+            this.plugin.paymentPreferences().setAllowsPayments(accountId, !sourcePaymentsBlocked);
+        }
+
+        messages().send(sender,
+                dryRun
+                        ? "<accent>Coffers Legacy restore preview prepared for <highlight>%player%<accent>."
+                        : "<success>Restored Coffers Legacy account data for <highlight>%player%<success>.",
+                single("player", displayName(player))
+        );
+        messages().send(sender, "<bullet><primary>Balance entries<secondary>: <highlight>%count%", single("count", Integer.toString(balanceCurrencies)));
+        messages().send(sender, "<bullet><primary>History entries<secondary>: <highlight>%count%", single("count", Integer.toString(historyEntries)));
+        messages().send(sender, "<bullet><primary>Report<secondary>: <highlight>%file%", single("file", reportFile.getName()));
+        return true;
+    }
+
+    private boolean handleRestoreBankAccount(
+            final CommandSender sender,
+            final LegacyResolvedArchiveSnapshot source,
+            final String bankToken,
+            final boolean dryRun
+    ) {
+        Map.Entry<String, String> sourceBank = findSourceBank(source.snapshot().getBanks(), bankToken);
+        if (sourceBank == null) {
+            messages().send(sender, "<warning>No Coffers Legacy bank named <highlight>%bank%<warning> exists in that %type%.", mapOf("bank", bankToken, "type", source.sourceType()));
+            return true;
+        }
+
+        String currentKey = this.plugin.bankRegistry().bankKey(sourceBank.getValue());
+        if (currentKey != null && !currentKey.equals(sourceBank.getKey())) {
+            messages().send(sender, "<error>A different live bank already uses the name <highlight>%bank%<error>. Rename or remove it before restoring this archived bank.", single("bank", sourceBank.getValue()));
+            return true;
+        }
+
+        UUID bankAccountId = this.plugin.bankRegistry().bankAccountIdForKey(sourceBank.getKey());
+        LegacyStorageSnapshot sourceSnapshot = source.snapshot().getStorageSnapshot();
+        if (!containsAccount(sourceSnapshot, bankAccountId)) {
+            messages().send(sender, "<warning>The archived bank <highlight>%bank%<warning> does not contain account data to restore.", single("bank", sourceBank.getValue()));
+            return true;
+        }
+
+        int balanceCurrencies = sourceSnapshot.getBalances().containsKey(bankAccountId) ? sourceSnapshot.getBalances().get(bankAccountId).size() : 0;
+        int historyEntries = sourceSnapshot.getHistory().containsKey(bankAccountId) ? sourceSnapshot.getHistory().get(bankAccountId).size() : 0;
+        Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
+        summary.put("bank-key", sourceBank.getKey());
+        summary.put("balance-currencies", Integer.valueOf(balanceCurrencies));
+        summary.put("history-entries", Integer.valueOf(historyEntries));
+        summary.put("currently-registered", Boolean.valueOf(currentKey != null));
+
+        File reportFile = this.plugin.diagnostics().writeAccountRestoreReport(
+                "bank:" + sourceBank.getValue(),
+                source.sourceType(),
+                source.sourceName(),
+                dryRun,
+                summary,
+                Collections.singletonList(dryRun ? "Preview only. No Coffers Legacy data was changed." : "Applied a targeted Coffers Legacy bank restore.")
+        );
+
+        if (!dryRun) {
+            this.plugin.bankRegistry().ensureBank(sourceBank.getKey(), sourceBank.getValue());
+            this.plugin.economy().restoreAccountFromSnapshot(bankAccountId, sourceSnapshot);
+        }
+
+        messages().send(sender,
+                dryRun
+                        ? "<accent>Coffers Legacy bank restore preview prepared for <highlight>%bank%<accent>."
+                        : "<success>Restored Coffers Legacy bank data for <highlight>%bank%<success>.",
+                single("bank", sourceBank.getValue())
+        );
+        messages().send(sender, "<bullet><primary>Balance entries<secondary>: <highlight>%count%", single("count", Integer.toString(balanceCurrencies)));
+        messages().send(sender, "<bullet><primary>History entries<secondary>: <highlight>%count%", single("count", Integer.toString(historyEntries)));
+        messages().send(sender, "<bullet><primary>Report<secondary>: <highlight>%file%", single("file", reportFile.getName()));
+        return true;
+    }
+
+    private OfflinePlayer resolveOfflinePlayer(final String token) {
+        try {
+            return Bukkit.getOfflinePlayer(UUID.fromString(token));
+        } catch (IllegalArgumentException ignored) {
+            return Bukkit.getOfflinePlayer(token);
+        }
+    }
+
+    private boolean containsAccount(final LegacyStorageSnapshot snapshot, final UUID accountId) {
+        return snapshot.getBalances().containsKey(accountId) || snapshot.getHistory().containsKey(accountId);
+    }
+
+    private Set<UUID> accountIds(final LegacyStorageSnapshot snapshot) {
+        Set<UUID> accountIds = new LinkedHashSet<UUID>();
+        accountIds.addAll(snapshot.getBalances().keySet());
+        accountIds.addAll(snapshot.getHistory().keySet());
+        return accountIds;
+    }
+
+    private int differenceSize(final Set<?> left, final Set<?> right) {
+        int count = 0;
+        for (Object value : left) {
+            if (!right.contains(value)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private Map.Entry<String, String> findSourceBank(final Map<String, String> archivedBanks, final String token) {
+        for (Map.Entry<String, String> entry : archivedBanks.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(token) || entry.getValue().equalsIgnoreCase(token)) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     private boolean isCurrencyId(final String currencyId) {

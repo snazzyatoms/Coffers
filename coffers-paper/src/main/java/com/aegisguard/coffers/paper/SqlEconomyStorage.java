@@ -59,11 +59,8 @@ final class SqlEconomyStorage implements EconomyStorage {
                         PRIMARY KEY (entry_id)
                     )
                     """);
-<<<<<<< Updated upstream
-=======
             ensureColumn(statement, "coffers_history", "previous_balance", "VARCHAR(64) NULL");
             ensureColumn(statement, "coffers_history", "reversal_of_reference_id", "VARCHAR(36) NULL");
->>>>>>> Stashed changes
             statement.execute("""
                     CREATE TABLE IF NOT EXISTS coffers_metadata (
                         metadata_key VARCHAR(64) NOT NULL,
@@ -174,15 +171,6 @@ final class SqlEconomyStorage implements EconomyStorage {
                     insert.setString(5, entry.currencyId());
                     insert.setString(6, entry.kind().name());
                     insert.setString(7, entry.amount().toPlainString());
-<<<<<<< Updated upstream
-                    insert.setString(8, entry.resultingBalance().toPlainString());
-                    insert.setString(9, actor.type().name());
-                    insert.setString(10, actor.actorId() == null ? null : actor.actorId().toString());
-                    insert.setString(11, actor.actorName());
-                    insert.setString(12, actor.source());
-                    insert.setString(13, entry.reason());
-                    insert.setLong(14, entry.createdAtEpochMilli());
-=======
                     insert.setString(8, entry.previousBalance().toPlainString());
                     insert.setString(9, entry.resultingBalance().toPlainString());
                     insert.setString(10, actor.type().name());
@@ -192,7 +180,6 @@ final class SqlEconomyStorage implements EconomyStorage {
                     insert.setString(14, entry.reason());
                     insert.setString(15, entry.reversalOfReferenceId() == null ? null : entry.reversalOfReferenceId().toString());
                     insert.setLong(16, entry.createdAtEpochMilli());
->>>>>>> Stashed changes
                     insert.addBatch();
                 }
                 insert.executeBatch();

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Properties;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 import com.aegisguard.coffers.spi.NativeCoffersEconomy;
@@ -20,81 +21,40 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
     private Object vaultEconomyProvider;
     private LegacyMigrationGateway migrationService =
             new UnavailableLegacyMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
-<<<<<<< Updated upstream
-
-    public void onEnable() {
-        saveDefaultConfig();
-
-        try {
-            List<String> configErrors = CoffersLegacyConfigValidator.validate(getConfig());
-            if (!configErrors.isEmpty()) {
-                for (String error : configErrors) {
-                    getLogger().severe("Config error: " + error);
-                }
-                getServer().getPluginManager().disablePlugin(this);
-                return;
-            }
-
-            List<LegacyCurrencyDefinition> currencies = loadCurrencies();
-            LegacyEconomyStorage storage = createStorage();
-            storage.initialize();
-
-            String defaultCurrencyId = getConfig().getString("currencies.default", currencies.isEmpty() ? "coins" : currencies.get(0).getId());
-            int historyLimit = getConfig().getInt("history.max-per-account", 50);
-            LegacyStorageSnapshot snapshot = storage.load();
-
-            this.economy = new CoffersLegacyEconomyService(currencies, defaultCurrencyId, storage, historyLimit, snapshot, getLogger());
-        } catch (Exception exception) {
-            getLogger().severe("Failed to start Coffers Legacy: " + exception.getMessage());
-            exception.printStackTrace();
-=======
     private LegacySnapshotArchiveService archiveService;
     private LegacyPaymentPreferenceService paymentPreferences;
     private LegacyBankRegistryService bankRegistry;
     private LegacyDiagnosticsReportService diagnostics;
     private LegacyMessagePalette messages;
+    private CoffersLegacyPlayerAccountListener playerAccountListener;
+    private LegacySafetyBackupService safetyBackups;
 
     public void onEnable() {
         if (getServer().getPluginManager().getPlugin("Coffers") != null) {
             getLogger().severe("Coffers.jar is installed alongside Coffers-Legacy.jar. The legacy jar will not start while the modern jar is present. Remove one of the two jars and restart the server.");
->>>>>>> Stashed changes
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
-<<<<<<< Updated upstream
-        PluginCommand command = Objects.requireNonNull(getCommand("cofferslegacy"), "cofferslegacy command missing from plugin.yml");
-        getServer().getServicesManager().register(NativeCoffersEconomy.class, new NativeLegacyCoffersEconomyBridge(this.economy), this, ServicePriority.High);
-
-        CoffersLegacyCommand executor = new CoffersLegacyCommand(this, this.economy);
-        command.setExecutor(executor);
-        command.setTabCompleter(executor);
-
-        registerVaultCompatibility();
-        configureMigrationGateway();
-=======
         saveDefaultConfig();
         this.archiveService = new LegacySnapshotArchiveService(this);
         this.diagnostics = new LegacyDiagnosticsReportService(this);
         this.messages = LegacyMessagePalette.fromConfig(getConfig());
+        this.playerAccountListener = new CoffersLegacyPlayerAccountListener(this);
+        this.safetyBackups = new LegacySafetyBackupService(this);
+        getServer().getPluginManager().registerEvents(this.playerAccountListener, this);
         if (!loadRuntime(false)) {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
->>>>>>> Stashed changes
         getLogger().info("Coffers Legacy is ready.");
     }
 
     public void onDisable() {
-<<<<<<< Updated upstream
-        getServer().getServicesManager().unregisterAll(this);
-        this.vaultEconomyProvider = null;
-        this.migrationService = new UnavailableLegacyMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
-        if (this.economy != null) {
-            this.economy.close();
+        if (this.safetyBackups != null) {
+            this.safetyBackups.runShutdownBackupIfEnabled();
         }
-=======
         shutdownRuntime();
     }
 
@@ -103,7 +63,6 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         this.messages = LegacyMessagePalette.fromConfig(getConfig());
         shutdownRuntime();
         return loadRuntime(true);
->>>>>>> Stashed changes
     }
 
     private void registerVaultCompatibility() {
@@ -234,8 +193,6 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
     LegacyMigrationGateway migrationService() {
         return this.migrationService;
     }
-<<<<<<< Updated upstream
-=======
 
     LegacyPaymentPreferenceService paymentPreferences() {
         return this.paymentPreferences;
@@ -253,8 +210,36 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         return this.diagnostics;
     }
 
+    boolean autoBackupsEnabled() {
+        return getConfig().getBoolean("safety.auto-backups.enabled", true);
+    }
+
+    int autoBackupIntervalMinutes() {
+        return getConfig().getInt("safety.auto-backups.interval-minutes", 30);
+    }
+
+    int automatedBackupRetentionCount() {
+        return getConfig().getInt("safety.auto-backups.retention", 12);
+    }
+
+    boolean startupSafetyBackupEnabled() {
+        return getConfig().getBoolean("safety.startup-safety-copy", true);
+    }
+
+    boolean shutdownSafetyBackupEnabled() {
+        return getConfig().getBoolean("safety.shutdown-safety-copy", true);
+    }
+
     LegacyMessagePalette messages() {
         return this.messages;
+    }
+
+    boolean autoCreatePlayerBanks() {
+        return getConfig().getBoolean("banks.auto-create-player-bank", true);
+    }
+
+    String playerBankSuffix() {
+        return getConfig().getString("banks.player-bank-suffix", "-bank");
     }
 
     private boolean loadRuntime(final boolean reloading) {
@@ -288,6 +273,9 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
             registerCommands();
             registerVaultCompatibility();
             configureMigrationGateway();
+            bootstrapOnlinePlayers();
+            this.safetyBackups.start();
+            this.safetyBackups.runStartupBackupIfEnabled();
             writeStartupDiagnostics();
             logStartupSummary();
 
@@ -303,6 +291,9 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
     }
 
     private void shutdownRuntime() {
+        if (this.safetyBackups != null) {
+            this.safetyBackups.stop();
+        }
         getServer().getServicesManager().unregisterAll(this);
         this.vaultEconomyProvider = null;
         this.migrationService = new UnavailableLegacyMigrationGateway("Vault is not installed, so Vault migration is unavailable.");
@@ -362,6 +353,12 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
                 + ", banks=" + this.bankRegistry.bankCount());
     }
 
+    private void bootstrapOnlinePlayers() {
+        for (Player player : getServer().getOnlinePlayers()) {
+            this.playerAccountListener.bootstrapPlayer(player);
+        }
+    }
+
     private void registerCommand(final String commandName, final CoffersLegacyCommandHandler executor) {
         PluginCommand command = Objects.requireNonNull(getCommand(commandName), commandName + " command missing from plugin.yml");
         command.setExecutor(executor);
@@ -374,5 +371,4 @@ public final class CoffersLegacyPlugin extends JavaPlugin {
         registerCommand("baltop", executor);
         registerCommand("paytoggle", executor);
     }
->>>>>>> Stashed changes
 }
