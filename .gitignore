@@ -1,3 +1,6 @@
 build/
 release/
 **/target/
+Coffers-v0.2/
+Coffers Release jars/
+*.log
