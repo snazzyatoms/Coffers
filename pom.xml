@@ -26,6 +26,7 @@
         <vault.api.version>1.7.1</vault.api.version>
         <junit.jupiter.version>5.13.4</junit.jupiter.version>
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
+        <maven.surefire.plugin.version>3.5.2</maven.surefire.plugin.version>
         <coffers.build.root>${maven.multiModuleProjectDirectory}/build</coffers.build.root>
         <coffers.release.root>${maven.multiModuleProjectDirectory}/release</coffers.release.root>
     </properties>
@@ -64,6 +65,11 @@
                     <configuration>
                         <release>${maven.compiler.release}</release>
                     </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>${maven.surefire.plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
